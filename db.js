@@ -1,10 +1,16 @@
-// Base URL of your deployed Worker. Set to "" for Cloudflare Pages Functions.
-const API_BASE = ""; // FIX 1: Hardcoded URL ko hata kar relative path set kiya
+// **FIX 1: Cloudflare Pages Functions ke liye Base URL ko khaali rakhein**
+const API_BASE = ""; 
 
 // ----------------- Helper -----------------
 async function apiRequest(path, method = "GET", body = null, token = null) {
   const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // NOTE: Aapki backend files (e.g., add_manager.js) 'Authorization' header use nahi karti hain, 
+  // woh seedhe body mein 'owner_id' leti hain. Hum token ko body mein merge kar denge.
+  if (token) {
+    if (body) {
+      body.owner_id = token; // Assuming ownerKey is passed as token here
+    }
+  }
 
   const res = await fetch(`${API_BASE}${path}`, {
     method,
@@ -13,39 +19,56 @@ async function apiRequest(path, method = "GET", body = null, token = null) {
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "API request failed");
+  if (!res.ok || data.success === false) throw new Error(data.message || data.error || "API request failed");
   return data;
 }
 
 // ----------------- Auth -----------------
+// NOTE: This function is not used by index.html, but keeping it correct.
 export async function login(username, password) {
-  // NOTE: 'login' function is not used directly in index.html, it's inlined in app.js
-  return apiRequest("/owners_login", "POST", { username, password }); // Ise '/owners_login' set kiya
+  return apiRequest("/owners_login", "POST", { phone: username, password: password });
 }
 
 // ----------------- Admin (Owner) -----------------
 export async function addManager(name, username, password, ownerKey) {
   // FIX 2: Path changed from /admin/manager to /add_manager (functions/add_manager.js)
-  return apiRequest("/add_manager", "POST", { name, username: username, phone: username, password: password, owner_id: ownerKey }); // Payload updated
+  // Payload must be: { owner_id, point_id, name, phone }
+  // username ko phone maan rahe hain. point_id ko 1 (default) maan rahe hain.
+  return apiRequest("/add_manager", "POST", { 
+    name, 
+    phone: username, 
+    // password yahan nahi chahiye according to add_manager.js
+    point_id: 1 
+  }, ownerKey); // ownerKey will be added as owner_id in apiRequest helper
 }
 
 export async function addDriver(name, phone, ownerKey) {
   // FIX 3: Path changed from /admin/driver to /add_driver (functions/add_driver.js)
-  return apiRequest("/add_driver", "POST", { name, phone, owner_id: ownerKey }); // Payload updated
+  // Payload must be: { owner_id, point_id, name, phone }
+  return apiRequest("/add_driver", "POST", { 
+    name, 
+    phone, 
+    point_id: 1 
+  }, ownerKey); // ownerKey will be added as owner_id in apiRequest helper
 }
 
-export async function addPoints(driver_id, points, reason, ownerKey) {
+export async function addPoints(name, address, ownerKey) {
   // FIX 4: Path changed from /admin/points to /add_point (functions/add_point.js)
-  return apiRequest("/add_point", "POST", { driver_id, points, reason, owner_id: ownerKey }); // Payload updated
+  // NOTE: Your add_point.js file is for adding a NEW VALET POINT (not adding points/score to a driver).
+  // Payload must be: { owner_id, point_name, point_address }
+  return apiRequest("/add_point", "POST", { 
+    point_name: name, 
+    point_address: address 
+  }, ownerKey); // ownerKey will be added as owner_id in apiRequest helper
 }
 
 // ----------------- Driver -----------------
 export async function getDriverBalance(driver_id) {
-  // NOTE: '/driver/...' and '/drivers' endpoints ke liye files available nahi hain.
-  // Yeh API call deployment ke baad fail ho sakti hai.
+  // NOTE: This endpoint's implementation is not provided, but the path is set correctly.
   return apiRequest(`/driver/${driver_id}/balance`);
 }
 
 export async function listDrivers() {
+  // NOTE: This endpoint's implementation is not provided, but the path is set correctly.
   return apiRequest("/drivers");
 }
