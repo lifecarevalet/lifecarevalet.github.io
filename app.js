@@ -1,3 +1,5 @@
+const API = "https://lifecarevalet-35b.workers.dev";
+
 let role = "";
 let currentUser = null;
 
@@ -10,17 +12,20 @@ async function login() {
   let mobile = document.getElementById("mobile").value;
   let pass = document.getElementById("password").value;
 
-  let q = await dbQuery(
-    "SELECT * FROM users WHERE mobile=? AND password=? AND role=?",
-    [mobile, pass, role]
-  );
+  let res = await fetch(`${API}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mobile, password: pass, role })
+  });
 
-  if (q.results.length === 0) {
+  let data = await res.json();
+
+  if (!data.success) {
     alert("Invalid login");
     return;
   }
 
-  currentUser = q.results[0];
+  currentUser = data.user;
   showDashboard();
 }
 
@@ -55,24 +60,32 @@ function closeModal() {
 async function saveToken() {
   let id = Date.now();
 
-  await dbQuery(
-    "INSERT INTO tokens(id,car,customer,cmobile,lane,driver,created) VALUES (?,?,?,?,?,?,datetime('now'))",
-    [
-      id,
-      carNumber.value,
-      custName.value,
-      custMobile.value,
-      parkingLane.value,
-      currentUser.name
-    ]
-  );
+  let payload = {
+    id,
+    car: carNumber.value,
+    customer: custName.value,
+    cmobile: custMobile.value,
+    lane: parkingLane.value,
+    driver: currentUser.name,
+  };
+
+  await fetch(`${API}/token/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
 
   alert("Token Created: " + id);
   closeModal();
 }
 
 async function carOut() {
-  await dbQuery("DELETE FROM tokens WHERE id=?", [outTokenId.value]);
+  await fetch(`${API}/token/out`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: outTokenId.value })
+  });
+
   alert("Car Out");
   closeModal();
 }
