@@ -1,5 +1,5 @@
-const DB_URL = "YOUR_D1_ENDPOINT";
-const DB_AUTH = "YOUR_D1_AUTH_TOKEN";
+const DB_URL = "https://lifecarevalet-35b.workers.dev";
+const DB_AUTH = "YOUR_D1_AUTH_TOKEN"; // <-- yahan apna real token daalna
 
 async function dbQuery(sql, params = []) {
   const res = await fetch(DB_URL, {
@@ -10,6 +10,10 @@ async function dbQuery(sql, params = []) {
     },
     body: JSON.stringify({ sql, params })
   });
+
+  if (!res.ok) {
+    throw new Error(`DB request failed: ${res.status}`);
+  }
 
   return await res.json();
 }
