@@ -1,4 +1,4 @@
-// **FIX 1: Cloudflare Pages Functions ke liye Base URL ko khaali rakhein**
+// **FIX: Cloudflare Pages Functions ke liye Base URL ko khaali rakhein**
 const API = ""; 
 
 let role = "";
@@ -7,7 +7,7 @@ let currentUser = null;
 function selectRole(r) {
   role = r;
   document.getElementById("loginForm").style.display = "block";
-  // FIX 2: Driver login mein password field chupa diya (driver_login.js ko password nahi chahiye)
+  // Driver login mein password field chupa diya
   document.getElementById("password").style.display = (role === "driver") ? "none" : "block"; 
 }
 
@@ -15,16 +15,14 @@ async function login() {
   let mobile = document.getElementById("mobile").value;
   let pass = document.getElementById("password").value;
 
-  // FIX 3: Dynamic endpoint and payload based on role
+  // FIX: Dynamic endpoint and payload based on role
   let endpoint;
-  let payload = { phone: mobile }; // Sabhi logins ko 'phone' chahiye
+  let payload = { phone: mobile }; 
   
   if (role === "driver") {
-    // Calls functions/driver_login.js -> payload: { phone }
-    endpoint = `${API}/driver_login`; 
+    endpoint = `${API}/driver_login`; // Calls functions/driver_login.js
   } else if (role === "owner" || role === "manager") {
-    // Calls functions/owners_login.js -> payload: { phone, password }
-    endpoint = `${API}/owners_login`; 
+    endpoint = `${API}/owners_login`; // Calls functions/owners_login.js
     payload.password = pass;
   } else {
     alert("Please select a role.");
@@ -40,14 +38,12 @@ async function login() {
   let data = await res.json();
   
   if (!data.success) {
-    alert("Invalid login");
+    alert(data.message || "Invalid login");
     return;
   }
 
-  // FIX 4: Correctly handle response from owners_login.js (returns owner_id, name)
   currentUser = {
       role: role,
-      // owner_id ya driver_id ko ID ke roop mein store karein
       id: data.owner_id || data.driver_id || data.id, 
       name: data.name || "User",
   };
@@ -85,8 +81,7 @@ function closeModal() {
 
 async function saveToken() {
   let id = Date.now();
-  // NOTE: Token creation logic is not in your provided backend files, 
-  // but we fix the API path usage here.
+  // NOTE: Assuming a token create API endpoint exists in functions/token/create.js
   let payload = {
     id,
     car: carNumber.value,
@@ -96,7 +91,7 @@ async function saveToken() {
     driver: currentUser.name,
   };
 
-  await fetch(`${API}/token/create`, { // Assuming /functions/token_create.js exists
+  await fetch(`${API}/token/create`, { 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -107,8 +102,8 @@ async function saveToken() {
 }
 
 async function carOut() {
-  // NOTE: Car Out logic is not in your provided backend files.
-  await fetch(`${API}/token/out`, { // Assuming /functions/token_out.js exists
+  // NOTE: Assuming a car out API endpoint exists in functions/token/out.js
+  await fetch(`${API}/token/out`, { 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: outTokenId.value })
