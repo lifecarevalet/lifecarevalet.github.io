@@ -1,4 +1,4 @@
-const API = "https://lifecarevalet-35b.workers.dev";
+const API = ""; // FIX 1: Hardcoded URL ko hata kar relative path set kiya
 
 let role = "";
 let currentUser = null;
@@ -6,26 +6,49 @@ let currentUser = null;
 function selectRole(r) {
   role = r;
   document.getElementById("loginForm").style.display = "block";
+  // FIX 2: Driver login mein password field chupa diya (driver_login.js mein password nahi hai)
+  document.getElementById("password").style.display = (role === "driver") ? "none" : "block"; 
 }
 
 async function login() {
   let mobile = document.getElementById("mobile").value;
   let pass = document.getElementById("password").value;
 
-  let res = await fetch(`${API}/login`, {
+  // FIX 3: Dynamic endpoint based on role for Pages Functions
+  let endpoint;
+  let payload = { phone: mobile }; // Backend files 'phone' use karte hain
+  
+  if (role === "driver") {
+    endpoint = `${API}/driver_login`; // Calls functions/driver_login.js
+  } else if (role === "owner" || role === "manager") {
+    endpoint = `${API}/owners_login`; // Calls functions/owners_login.js
+    payload.password = pass;
+  } else {
+    alert("Please select a role.");
+    return;
+  }
+
+  let res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mobile, password: pass, role })
+    body: JSON.stringify(payload)
   });
 
   let data = await res.json();
-
+  
   if (!data.success) {
     alert("Invalid login");
     return;
   }
 
-  currentUser = data.user;
+  // NOTE: owners_login.js returns 'owner_id' and 'name'. app.js needs 'user' object.
+  // Hum manually currentUser object bana rahe hain taaki dashboard chal sake.
+  currentUser = {
+      role: role,
+      id: data.owner_id || data.driver_id || data.id, 
+      name: data.name || "User",
+  };
+  
   showDashboard();
 }
 
@@ -69,6 +92,8 @@ async function saveToken() {
     driver: currentUser.name,
   };
 
+  // NOTE: '/token/create' is a missing endpoint. Iske liye 'functions/token_create.js' file chahiye.
+  // Main base URL fix kar raha hu:
   await fetch(`${API}/token/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -80,6 +105,8 @@ async function saveToken() {
 }
 
 async function carOut() {
+  // NOTE: '/token/out' is a missing endpoint. Iske liye 'functions/token_out.js' file chahiye.
+  // Main base URL fix kar raha hu:
   await fetch(`${API}/token/out`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
