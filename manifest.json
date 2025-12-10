@@ -1,0 +1,9 @@
+{
+  "name": "Life Care Valet Parking",
+  "short_name": "LifeValet",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a4fff",
+  "theme_color": "#1a4fff",
+  "icons": []
+}
