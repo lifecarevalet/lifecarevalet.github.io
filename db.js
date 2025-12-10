@@ -1,5 +1,5 @@
 // Base URL of your deployed Worker
-const API_BASE = "https://lifecarevalet-35b.workers.dev/api";
+const API_BASE = "https://lifecarevalet-worker.<your-subdomain>.workers.dev/api";
 
 // ----------------- Helper -----------------
 async function apiRequest(path, method = "GET", body = null, token = null) {
