@@ -1,5 +1,5 @@
 const DB_URL = "https://lifecarevalet-35b.workers.dev";
-const DB_AUTH = "YOUR_D1_AUTH_TOKEN"; // <-- yahan apna real token daalna
+const DB_AUTH = "YOUR_D1_AUTH_TOKEN"; // <-- yahan apna real token dalna, backend ready hone ke baad
 
 async function dbQuery(sql, params = []) {
   const res = await fetch(DB_URL, {
