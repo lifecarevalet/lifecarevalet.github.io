@@ -1,9 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-// -------------------------------------------------------------
-// YAHAN BADALNA HAI: Filename ko exact match karein: app.js
-import App from './app.js'; 
-// -------------------------------------------------------------
+// ----------------------------------------------------------------------
+import App from './app.js'; // ✅ App component ko app.js ke naam se import kiya
+// ----------------------------------------------------------------------
 import './index.css'; 
 
 ReactDOM.createRoot(document.getElementById('root')).render(
