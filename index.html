@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Care Valet Parking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fadeIn { animation: fadeIn 1s ease-in-out; }
+        .fixed-header { position: sticky; top: 0; z-index: 10; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="app-root">
+        </div>
+
+    <script>
+        // --- 1. CONFIGURATION ---
+        // 🚨 IMPORTANT: Yahan apne Railway Backend ka URL daalein
+        const API_BASE_URL = 'YOUR_RAILWAY_BACKEND_URL_HERE'; 
+
+        // --- 2. STATE MANAGEMENT ---
+        const appRoot = document.getElementById('app-root');
+        let isSplash = true;
+        let user = JSON.parse(localStorage.getItem('user'));
+        let currentTokens = []; // To store fetched token data
+
+        // --- 3. UTILITY FUNCTIONS ---
+
+        function getAuthHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${user ? user.token : ''}`
+            };
+        }
+
+        function handleLogout() {
+            user = null;
+            localStorage.removeItem('user');
+            currentTokens = [];
+            renderApp();
+        }
+
+        async function fetchTokens() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tokens/data`, { headers: getAuthHeaders() });
+                if (!response.ok) throw new Error('Failed to fetch tokens');
+                currentTokens = await response.json();
+                renderDashboard(); // Re-render dashboard with new data
+            } catch (error) {
+                console.error("Token fetch error:", error);
+                // agar token expired ho jaye to logout kar dena
+                handleLogout(); 
+            }
+        }
+
+        // --- 4. RENDER COMPONENTS ---
+
+        function renderSplashScreen() {
+            appRoot.innerHTML = `
+                <div class="flex flex-col items-center justify-center min-h-screen bg-green-700 text-white animate-fadeIn">
+                    <h1 class="text-5xl font-extrabold tracking-widest">LIFE CARE</h1>
+                    <p class="text-xl mt-2 font-light">VALET PARKING</p>
+                    <div class="mt-8">
+                        <div class="w-8 h-8 border-4 border-t-4 border-white border-opacity-30 rounded-full animate-spin"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLoginPage() {
+            appRoot.innerHTML = `
+                <div class="flex items-center justify-center min-h-screen">
+                    <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm">
+                        <h2 class="text-3xl font-bold text-center text-green-700 mb-6">VALET LOGIN</h2>
+                        <form id="login-form">
+                            <div class="mb-4">
+                                <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                                <input type="text" id="username" name="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div class="mb-6">
+                                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                                <input type="password" id="password" name="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <button type="submit" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                                Login
+                            </button>
+                            <p id="error-message" class="text-red-500 text-sm mt-3 text-center"></p>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
+        }
+
+        // Driver/Manager Dashboard UI
+        function renderDashboard() {
+            if (!user) return renderLoginPage();
+            
+            const dashboardHtml = `
+                <div class="min-h-screen bg-gray-50 pb-20">
+                    <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
+                        <div>
+                            <h1 class="text-lg font-semibold">${user.fullName} (${user.role.toUpperCase()})</h1>
+                            <p class="text-xs">${user.pointName || 'No Point Assigned'}</p>
+                        </div>
+                        <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Logout</button>
+                    </header>
+                    
+                    <main class="pt-20 p-4">
+                        ${user.role === 'driver' || user.role === 'manager' ? `
+                            <div class="bg-white p-4 rounded-lg shadow mb-6">
+                                <h2 class="text-xl font-bold text-green-700 mb-4">CAR IN (Generate Token)</h2>
+                                <form id="car-in-form" class="space-y-4">
+                                    <div>
+                                        <label for="carNumber" class="block text-sm font-medium text-gray-700">Car Number</label>
+                                        <input type="text" id="carNumber" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 uppercase" placeholder="e.g., MH01AB1234">
+                                    </div>
+                                    <div>
+                                        <label for="customerName" class="block text-sm font-medium text-gray-700">Customer Name (Optional)</label>
+                                        <input type="text" id="customerName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500" placeholder="e.g., Rahul Sharma">
+                                    </div>
+                                    <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">
+                                        Generate Token
+                                    </button>
+                                    <p id="in-message" class="text-sm mt-2 text-center"></p>
+                                </form>
+                            </div>
+                        ` : ''}
+
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4">Active Tokens (${currentTokens.filter(t => !t.outTime).length})</h2>
+                            
+                            <p id="token-list-message" class="text-gray-500 text-sm mb-4">Fetching data...</p>
+
+                            <div id="active-tokens-list" class="space-y-3">
+                                ${renderTokenList()}
+                            </div>
+                            
+                        </div>
+                    </main>
+                </div>
+            `;
+            
+            appRoot.innerHTML = dashboardHtml;
+            document.getElementById('logout-button').addEventListener('click', handleLogout);
+            
+            // Add listeners for Car IN form
+            if (user.role === 'driver' || user.role === 'manager') {
+                document.getElementById('car-in-form').addEventListener('submit', handleCarInSubmit);
+            }
+            
+            // Add listeners for Car OUT buttons
+            document.querySelectorAll('.car-out-btn').forEach(button => {
+                button.addEventListener('click', handleCarOutSubmit);
+            });
+            
+            // Initial data fetch
+            if (currentTokens.length === 0) {
+                fetchTokens();
+            } else {
+                document.getElementById('token-list-message').textContent = 'Live data fetched.';
+            }
+        }
+
+        function renderTokenList() {
+            const activeTokens = currentTokens.filter(t => !t.outTime);
+            
+            if (activeTokens.length === 0) {
+                return '<p class="text-center text-gray-500 p-4">No active tokens found.</p>';
+            }
+
+            return activeTokens.map(token => {
+                const inTime = new Date(token.inTime).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+                
+                return `
+                    <div class="bg-gray-50 p-3 border-l-4 border-green-500 rounded-md shadow-sm flex justify-between items-center">
+                        <div>
+                            <p class="text-lg font-bold text-gray-800">${token.carNumber}</p>
+                            <p class="text-xs text-gray-500">Token: <span class="font-mono">${token.tokenNumber}</span> | Time: ${inTime}</p>
+                            <p class="text-sm text-gray-600">Cust: ${token.customerName} | Driver: ${token.driverId.fullName}</p>
+                        </div>
+                        <button data-token-id="${token._id}" class="car-out-btn bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm whitespace-nowrap">
+                            Car OUT
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- 5. ASYNC HANDLERS (API CALLS) ---
+
+        async function handleLoginSubmit(event) {
+            event.preventDefault();
+            const username = event.target.username.value;
+            const password = event.target.password.value;
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    user = { ...data };
+                    localStorage.setItem('user', JSON.stringify(user));
+                    errorMessage.textContent = 'Login Successful!';
+                    await fetchTokens(); // Fetch data immediately after login
+                    renderApp();
+                } else {
+                    const errorData = await response.json();
+                    errorMessage.textContent = errorData.message || 'Login Failed. Invalid Credentials.';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Could not connect to the server.';
+                console.error('Login error:', error);
+            }
+        }
+
+        async function handleCarInSubmit(event) {
+            event.preventDefault();
+            const carNumber = event.target.carNumber.value.toUpperCase();
+            const customerName = event.target.customerName.value || 'N/A';
+            const inMessage = document.getElementById('in-message');
+            inMessage.className = 'text-gray-500 text-sm mt-2 text-center';
+            inMessage.textContent = 'Generating Token...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tokens/in`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ carNumber, customerName })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    inMessage.className = 'text-green-600 text-sm mt-2 text-center font-bold';
+                    inMessage.textContent = `Token ${data.token.tokenNumber} generated for ${carNumber}!`;
+                    // Refresh token list
+                    fetchTokens(); 
+                    event.target.reset(); // Clear form
+                } else {
+                    const errorData = await response.json();
+                    inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+                    inMessage.textContent = errorData.message || 'Failed to generate token.';
+                }
+            } catch (error) {
+                inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+                inMessage.textContent = 'Network error: Could not connect to server.';
+                console.error('Car IN error:', error);
+            }
+        }
+
+        async function handleCarOutSubmit(event) {
+            const tokenId = event.currentTarget.dataset.tokenId;
+            if (!confirm('Are you sure you want to mark this car OUT?')) return;
+
+            const button = event.currentTarget;
+            button.textContent = 'Processing...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    alert('Car marked OUT successfully!');
+                    fetchTokens(); // Refresh list
+                } else {
+                    const errorData = await response.json();
+                    alert(errorData.message || 'Failed to mark car OUT.');
+                    button.textContent = 'Car OUT';
+                    button.disabled = false;
+                }
+            } catch (error) {
+                alert('Network error: Could not connect to server.');
+                button.textContent = 'Car OUT';
+                button.disabled = false;
+                console.error('Car OUT error:', error);
+            }
+        }
+
+        // --- 6. INITIAL RENDERER ---
+
+        function renderApp() {
+            if (isSplash) {
+                renderSplashScreen();
+            } else if (user) {
+                renderDashboard();
+            } else {
+                renderLoginPage();
+            }
+        }
+
+        // Start App
+        renderSplashScreen();
+        setTimeout(() => {
+            isSplash = false;
+            renderApp(); 
+        }, 3000); // 3 second splash screen timer
+    </script>
+</body>
+</html>
