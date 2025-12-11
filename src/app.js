@@ -1,16 +1,37 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-// -----------------------------------------------------------------
-// ✅ FIX 2: App component ko uske sahi naam aur extension '.js' se import kiya
-import App from './app.js'; 
-// -----------------------------------------------------------------
-import './index.css'; 
+import React, { useState, useEffect } from 'react';
+// ----------------------------------------------------------------------
+// ✅ FIX 3: Component files ka extension '.jsx' add kiya
+import LoginPage from './components/LoginPage.jsx'; 
+import Dashboard from './components/Dashboard.jsx'; 
+// ----------------------------------------------------------------------
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+function App() {
+  const [isSplash, setIsSplash] = useState(true);
+  const [user, setUser] = useState(null); 
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+        setUser(JSON.parse(storedUser));
+    }
+
+    // 3 seconds splash screen, even if user is auto-logged in
+    const timer = setTimeout(() => {
+      setIsSplash(false);
+    }, 3000); 
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('user');
+  };
 
   // ------------------- SPLASH SCREEN UI -------------------
   if (isSplash) {
@@ -34,4 +55,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 }
 
 export default App;
-                
