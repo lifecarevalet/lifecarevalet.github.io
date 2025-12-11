@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 // ----------------------------------------------------------------------
-import App from './app.js'; // ✅ App component ko app.js ke naam se import kiya
+import App from './app.jsx'; // ✅ App component ko app.js ke naam se import kiya
 // ----------------------------------------------------------------------
 import './index.css'; 
 
