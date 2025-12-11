@@ -1,12 +1,3 @@
-/*
-   Yeh file Tailwind CSS ko project mein import karti hai.
-   Ismein sirf yeh teen (3) lines honi chahiye.
-*/
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Aap optionally yahaan koi global styles ya fonts add kar sakte hain, 
-   lekin Tailwind ke liye upar ki teen lines zaroori hain. 
-*/
