@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import LoginPage from './components/LoginPage';
-import Dashboard from './components/Dashboard';
+// ----------------------------------------------------------------------
+import LoginPage from './components/LoginPage.jsx'; // ✅ '.jsx' extension zaroori hai
+import Dashboard from './components/Dashboard.jsx'; // ✅ '.jsx' extension zaroori hai
+// ----------------------------------------------------------------------
 
 function App() {
   const [isSplash, setIsSplash] = useState(true);
   const [user, setUser] = useState(null); 
-
+  
+  // App.js aur main.jsx mein imports ke liye aapko yeh code bhi copy paste karna padega
+  // taki yeh App component mein load ho sake.
+  
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
         setUser(JSON.parse(storedUser));
     }
-    
+
     // 3 seconds splash screen, even if user is auto-logged in
     const timer = setTimeout(() => {
       setIsSplash(false);
