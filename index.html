@@ -10,6 +10,7 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-fadeIn { animation: fadeIn 1s ease-in-out; }
         .fixed-header { position: sticky; top: 0; z-index: 10; }
+        .login-popup { animation: fadeIn 0.3s ease-out; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -18,15 +19,15 @@
         </div>
 
     <script>
-        // --- 1. CONFIGURATION ---
-        // 🚨 IMPORTANT: Yahan apne Railway Backend ka URL daalein
-        const API_BASE_URL = 'lifecarevaletbackend-production.up.railway.app'; 
+        // --- 1. CONFIGURATION (Aapka diya hua URL yahan daal diya gaya hai) ---
+        const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app'; 
 
         // --- 2. STATE MANAGEMENT ---
         const appRoot = document.getElementById('app-root');
         let isSplash = true;
         let user = JSON.parse(localStorage.getItem('user'));
-        let currentTokens = []; // To store fetched token data
+        let currentTokens = []; 
+        let currentLoginRole = null; 
 
         // --- 3. UTILITY FUNCTIONS ---
 
@@ -41,6 +42,7 @@
             user = null;
             localStorage.removeItem('user');
             currentTokens = [];
+            currentLoginRole = null;
             renderApp();
         }
 
@@ -49,15 +51,15 @@
                 const response = await fetch(`${API_BASE_URL}/api/tokens/data`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch tokens');
                 currentTokens = await response.json();
-                renderDashboard(); // Re-render dashboard with new data
+                renderDashboard(); 
             } catch (error) {
                 console.error("Token fetch error:", error);
                 // agar token expired ho jaye to logout kar dena
                 handleLogout(); 
             }
         }
-
-        // --- 4. RENDER COMPONENTS ---
+        
+        // --- 4. RENDER COMPONENTS (Login UI updated with 3 buttons and popup) ---
 
         function renderSplashScreen() {
             appRoot.innerHTML = `
@@ -70,42 +72,80 @@
                 </div>
             `;
         }
-
-        function renderLoginPage() {
+        
+        // 3 Role Selection Buttons
+        function renderRoleSelection() {
             appRoot.innerHTML = `
-                <div class="flex items-center justify-center min-h-screen">
-                    <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm">
-                        <h2 class="text-3xl font-bold text-center text-green-700 mb-6">VALET LOGIN</h2>
+                <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+                    <h2 class="text-3xl font-bold text-green-700 mb-8">SELECT LOGIN ROLE</h2>
+                    
+                    <div class="w-full max-w-xs space-y-4">
+                        <button data-role="owner" class="role-btn w-full bg-blue-600 text-white py-3 rounded-lg shadow-md hover:bg-blue-700 font-semibold">
+                            OWNER LOGIN (Admin)
+                        </button>
+                        <button data-role="manager" class="role-btn w-full bg-yellow-600 text-white py-3 rounded-lg shadow-md hover:bg-yellow-700 font-semibold">
+                            MANAGER LOGIN
+                        </button>
+                        <button data-role="driver" class="role-btn w-full bg-green-600 text-white py-3 rounded-lg shadow-md hover:bg-green-700 font-semibold">
+                            DRIVER LOGIN
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.querySelectorAll('.role-btn').forEach(button => {
+                button.addEventListener('click', handleRoleSelection);
+            });
+        }
+        
+        function handleRoleSelection(event) {
+            currentLoginRole = event.currentTarget.dataset.role;
+            renderLoginPopup();
+        }
+
+        // Login Popup
+        function renderLoginPopup() {
+            const role = currentLoginRole || 'N/A';
+            const color = role === 'owner' ? 'blue' : (role === 'manager' ? 'yellow' : 'green');
+            
+            // NOTE: Is code mein renderRoleSelection() bhi daala gaya hai taaki buttons background mein dikhte rahein
+            appRoot.innerHTML = `
+                ${renderRoleSelection()} 
+                
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center login-popup">
+                    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-sm">
+                        <h2 class="text-2xl font-bold text-center text-${color}-700 mb-4">${role.toUpperCase()} LOGIN</h2>
                         <form id="login-form">
                             <div class="mb-4">
                                 <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-                                <input type="text" id="username" name="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                                <input type="text" id="username" name="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-${color}-500 focus:border-${color}-500">
                             </div>
                             <div class="mb-6">
                                 <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                                <input type="password" id="password" name="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                                <input type="password" id="password" name="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-${color}-500 focus:border-${color}-500">
                             </div>
-                            <button type="submit" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
-                                Login
+                            <button type="submit" class="w-full bg-${color}-600 text-white py-2 px-4 rounded-md hover:bg-${color}-700 focus:outline-none focus:ring-2 focus:ring-${color}-500 focus:ring-offset-2">
+                                Login as ${role.toUpperCase()}
                             </button>
                             <p id="error-message" class="text-red-500 text-sm mt-3 text-center"></p>
                         </form>
+                        <button id="close-popup" class="w-full mt-4 text-gray-600 hover:text-gray-800 text-sm" onclick="renderApp()">
+                            Go Back to Role Selection
+                        </button>
                     </div>
                 </div>
             `;
             document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
         }
 
-        // Driver/Manager Dashboard UI
         function renderDashboard() {
-            if (!user) return renderLoginPage();
+            if (!user) return renderRoleSelection(); 
             
             const dashboardHtml = `
                 <div class="min-h-screen bg-gray-50 pb-20">
                     <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
                         <div>
                             <h1 class="text-lg font-semibold">${user.fullName} (${user.role.toUpperCase()})</h1>
-                            <p class="text-xs">${user.pointName || 'No Point Assigned'}</p>
+                            <p class="text-xs">Location: ${user.pointId || 'Not Assigned'}</p>
                         </div>
                         <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Logout</button>
                     </header>
@@ -148,17 +188,14 @@
             appRoot.innerHTML = dashboardHtml;
             document.getElementById('logout-button').addEventListener('click', handleLogout);
             
-            // Add listeners for Car IN form
             if (user.role === 'driver' || user.role === 'manager') {
                 document.getElementById('car-in-form').addEventListener('submit', handleCarInSubmit);
             }
             
-            // Add listeners for Car OUT buttons
             document.querySelectorAll('.car-out-btn').forEach(button => {
                 button.addEventListener('click', handleCarOutSubmit);
             });
             
-            // Initial data fetch
             if (currentTokens.length === 0) {
                 fetchTokens();
             } else {
@@ -181,7 +218,7 @@
                         <div>
                             <p class="text-lg font-bold text-gray-800">${token.carNumber}</p>
                             <p class="text-xs text-gray-500">Token: <span class="font-mono">${token.tokenNumber}</span> | Time: ${inTime}</p>
-                            <p class="text-sm text-gray-600">Cust: ${token.customerName} | Driver: ${token.driverId.fullName}</p>
+                            <p class="text-sm text-gray-600">Cust: ${token.customerName} | Driver: ${token.driverId ? token.driverId.fullName : 'N/A'}</p>
                         </div>
                         <button data-token-id="${token._id}" class="car-out-btn bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm whitespace-nowrap">
                             Car OUT
@@ -209,17 +246,25 @@
 
                 if (response.ok) {
                     const data = await response.json();
+                    
+                    if (data.role !== currentLoginRole) {
+                         errorMessage.textContent = `Login failed: Please log in as ${data.role.toUpperCase()} instead.`;
+                         currentLoginRole = data.role; 
+                         return;
+                    }
+                    
                     user = { ...data };
                     localStorage.setItem('user', JSON.stringify(user));
                     errorMessage.textContent = 'Login Successful!';
-                    await fetchTokens(); // Fetch data immediately after login
+                    await fetchTokens(); 
                     renderApp();
                 } else {
                     const errorData = await response.json();
                     errorMessage.textContent = errorData.message || 'Login Failed. Invalid Credentials.';
                 }
             } catch (error) {
-                errorMessage.textContent = 'Could not connect to the server.';
+                // Connection error show karega
+                errorMessage.textContent = `Could not connect to the server. Check your URL or Railway status.`; 
                 console.error('Login error:', error);
             }
         }
@@ -243,9 +288,8 @@
                     const data = await response.json();
                     inMessage.className = 'text-green-600 text-sm mt-2 text-center font-bold';
                     inMessage.textContent = `Token ${data.token.tokenNumber} generated for ${carNumber}!`;
-                    // Refresh token list
                     fetchTokens(); 
-                    event.target.reset(); // Clear form
+                    event.target.reset(); 
                 } else {
                     const errorData = await response.json();
                     inMessage.className = 'text-red-500 text-sm mt-2 text-center';
@@ -274,7 +318,7 @@
 
                 if (response.ok) {
                     alert('Car marked OUT successfully!');
-                    fetchTokens(); // Refresh list
+                    fetchTokens(); 
                 } else {
                     const errorData = await response.json();
                     alert(errorData.message || 'Failed to mark car OUT.');
@@ -297,7 +341,7 @@
             } else if (user) {
                 renderDashboard();
             } else {
-                renderLoginPage();
+                renderRoleSelection(); 
             }
         }
 
@@ -306,7 +350,7 @@
         setTimeout(() => {
             isSplash = false;
             renderApp(); 
-        }, 3000); // 3 second splash screen timer
+        }, 3000); 
     </script>
 </body>
 </html>
