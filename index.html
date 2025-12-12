@@ -258,7 +258,7 @@
         document.getElementById('back-role').addEventListener('click', () => { currentLoginRole = null; renderRoleSelection(); });
     }
 
-    // --- NEW RENDER POINT CREATION FUNCTION ---
+    // --- RENDER POINT CREATION FUNCTION (Updated for new fields) ---
     function renderPointCreation() {
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
@@ -271,11 +271,15 @@
                         <h2 class="text-2xl font-bold text-blue-700 mb-6 text-center">Create New Location</h2>
                         <form id="create-point-form" class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Location Name (e.g., Hotel A, A-One Complex)</label>
-                                <input type="text" id="name" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                                <label class="block text-sm font-medium text-gray-700">1. Hotel/Function Name (Required)</label>
+                                <input type="text" id="pointName" name="pointName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Hotel A">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Full Address</label>
+                                <label class="block text-sm font-medium text-gray-700">2. Complex Name (Optional)</label>
+                                <input type="text" id="complexName" name="complexName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., A One Complex">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">3. Full Address (Required)</label>
                                 <textarea id="address" name="address" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
                             </div>
 
@@ -288,7 +292,7 @@
         `;
         document.getElementById('create-point-form').addEventListener('submit', handlePointCreateSubmit);
     }
-    // --- END NEW RENDER POINT CREATION FUNCTION ---
+    // --- END RENDER POINT CREATION FUNCTION ---
 
 
     async function renderUserManagement(role) {
@@ -306,7 +310,6 @@
 
         const pointOptions = (currentPoints || []).map(p => `<option value="${p._id}">${p.name}</option>`).join('');
 
-        // ------------------ START: Hinglish Request Implementation ------------------
         // 1. MANAGER SELECT LOGIC
         let managerSelectHtml = '';
         if (!isManagerView) {
@@ -328,11 +331,11 @@
             }
         }
 
-        // 2. LOCATION SELECT LOGIC (Manager: Hatao Location Select, Driver: Auto-assign Manager's Location)
+        // 2. LOCATION SELECT LOGIC (Manager: Hatao Location Select)
         let pointSelectHtml = '';
 
         if (isManagerView) { // OWNER is creating a MANAGER
-            // Hinglish Request: Manager add karte wakt Assign Location ka option nikal do
+            // Hinglish Request: Manager add karte wakt Assign Location ka option nikal diya hai
             pointSelectHtml = ''; 
         } else { // OWNER/MANAGER is creating a DRIVER
             if (user && user.role === 'manager') {
@@ -364,8 +367,6 @@
                 `;
             }
         }
-        // ------------------ END: Hinglish Request Implementation ------------------
-
 
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
@@ -562,7 +563,7 @@
                                 </div>
                                 ${isManager ? `
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Select Driver (or choose yourself)</label>
+                                        <label class="block text-sm font-medium text-gray-700">Select Driver</label>
                                         <select id="driverSelect" name="driverSelect" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                                             <option value="${user._id}">-- ${user.fullName || user.username} (You as Driver) --</option>
                                         </select>
@@ -620,8 +621,20 @@
             if (!select) return;
             // clear except first option (you)
             const youOption = select.querySelector('option') ? select.querySelector('option').outerHTML : `<option value="${user._id}">${user.fullName || user.username} (You as Driver)</option>`;
-            const drivers = (allUsers || []).filter(u => u.role === 'driver' && ((u.managerId && ((typeof u.managerId === 'object' && u.managerId._id === user._id) || u.managerId === user._id)) || (!u.managerId && false)));
+            
+            // Filter drivers assigned to the current manager
+            const drivers = (allUsers || []).filter(u => 
+                u.role === 'driver' && 
+                u.managerId && 
+                (
+                    (typeof u.managerId === 'object' && u.managerId._id === user._id) || 
+                    (u.managerId === user._id)
+                )
+            );
+            
             const driversHtml = drivers.map(d => `<option value="${d._id}">${d.fullName} (${d.username})</option>`).join('');
+            
+            // Manager aur uske drivers ko show karo
             select.innerHTML = youOption + driversHtml;
         } catch (err) {
             console.error('populateManagerDriverSelect', err);
@@ -673,10 +686,19 @@
         messageElement.textContent = 'Creating Location...';
         const form = event.target;
 
+        const hotelName = form.pointName.value.trim();
+        const complexName = form.complexName.value.trim();
+        const address = form.address.value.trim();
+        
+        // Frontend mein dono name combine karke backend ke single 'name' field mein bhej rahe hain
+        const finalName = complexName ? `${hotelName} (${complexName})` : hotelName;
+
         const formData = {
-            name: form.name.value,
-            address: form.address.value, // Address field added
+            name: finalName,
+            address: address, // Address field
         };
+        
+        // Developer Note: Agar backend complexName ko alag field mein store kar sakta hai, toh API update karein. Abhi humne isko name mein combine kiya hai.
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/points/admin/create`, {
@@ -711,14 +733,14 @@
         messageElement.textContent = `Creating ${role}...`;
 
         // ------------------ START: Auto-assign Manager/Location logic ------------------
-        let pointId = null; // Default: Manager/Driver creation ke liye
-        let managerId = null; // Default
+        let pointId = null; 
+        let managerId = null; 
 
         if (role === 'driver') {
             if (user && user.role === 'manager') {
                 // Manager creating a Driver: Auto-assign manager's ID and Location ID
-                managerId = user._id; // Manager is the manager
-                pointId = user.pointId && typeof user.pointId === 'object' ? user.pointId._id : user.pointId; // Manager's pointId is the driver's pointId
+                managerId = user._id; 
+                pointId = user.pointId && typeof user.pointId === 'object' ? user.pointId._id : user.pointId; 
             } else if (user && user.role === 'owner') {
                 // Owner creating a Driver: uses the select fields
                 const managerIdField = form.querySelector('#managerId');
@@ -727,7 +749,7 @@
             }
         } else if (role === 'manager' && user && user.role === 'owner') {
              // Owner creating a Manager: No location assigned at creation (pointId will be null/unassigned)
-             pointId = null;
+             pointId = null; // <--- Point ID removed as per request
         }
         // ------------------ END: Auto-assign Manager/Location logic ------------------
 
@@ -736,19 +758,19 @@
             password: form.password.value,
             fullName: form.fullName.value,
             role: role,
-            pointId: pointId,
             managerId: role === 'driver' ? managerId : null
         };
+        
+        // Point ID only send if it's not null/unassigned (like for Manager creation)
+        if (pointId) {
+             payload.pointId = pointId;
+        }
+
 
         if (role === 'driver' && !payload.managerId) {
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
             messageElement.textContent = 'Error: Driver must be assigned to a Manager.';
             return;
-        }
-        
-        // Agar pointId null hai toh payload mein mat bhejo, taaki backend null/undefined handle kar sake
-        if (payload.pointId === null) {
-             delete payload.pointId;
         }
 
         try {
@@ -890,7 +912,7 @@
             return;
         }
 
-        // If manager, get selected driver id
+        // If manager, get selected driver id (khud ya assigned driver)
         let driverId = null;
         let driverName = null;
         if (user.role === 'manager') {
