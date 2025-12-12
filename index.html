@@ -51,7 +51,11 @@
 </div>
 
 <div id="token-popup" class="token-popup modal fixed inset-0 bg-black bg-opacity-80 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-sm text-center">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-sm text-center relative">
+        <button id="token-popup-close-icon" onclick="hideTokenPopup()" class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 focus:outline-none p-1 rounded-full hover:bg-gray-100">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+
         <h2 class="text-gray-600 mb-2 font-light text-sm">TOKEN GENERATED</h2>
         <p id="popup-token" class="token-number text-green-700 font-extrabold"></p>
         <div class="mt-4 space-y-1 meta">
@@ -60,10 +64,37 @@
             <p id="popup-driver" class="text-gray-500"></p>
         </div>
         
-        <button id="token-popup-close-btn" class="w-full mt-6 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 font-semibold">CLOSE</button>
-        <button id="token-popup-close" class="hidden"></button>
+        <button id="token-popup-close" class="w-full mt-6 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 font-semibold">OK</button>
     </div>
 </div>
+
+<div id="custom-modal-backdrop" class="modal fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
+    <div id="custom-alert-modal" class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm hidden">
+        <div class="flex justify-between items-start mb-4">
+            <h3 id="custom-alert-title" class="text-lg font-bold text-gray-800">Alert</h3>
+            <button onclick="closeCustomModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <p id="custom-alert-message" class="text-gray-700 mb-6"></p>
+        <button onclick="closeCustomModal()" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 font-semibold">OK</button>
+    </div>
+
+    <div id="custom-confirm-modal" class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm hidden">
+        <div class="flex justify-between items-start mb-4">
+            <h3 id="custom-confirm-title" class="text-lg font-bold text-red-600">Confirmation Required</h3>
+            <button onclick="closeCustomModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <p id="custom-confirm-message" class="text-gray-700 mb-6"></p>
+        <div class="flex gap-4">
+            <button id="custom-confirm-cancel" onclick="closeCustomModal()" class="w-1/2 text-gray-700 bg-gray-200 py-2 rounded-md hover:bg-gray-300 font-semibold">Cancel</button>
+            <button id="custom-confirm-ok" class="w-1/2 bg-red-600 text-white py-2 rounded-md hover:bg-red-700 font-semibold">Confirm</button>
+        </div>
+    </div>
+</div>
+
 
 <script>
     // --- CONFIG ---
@@ -78,6 +109,7 @@
     let currentPoints = [];
     let currentManagers = [];
     let allUsers = [];
+    let globalConfirmCallback = null; // For custom confirm modal
 
     // --- HELPERS ---
     function getAuthHeaders() {
@@ -87,7 +119,58 @@
         };
     }
     
-    // NEW: Function to clean up the modal after Point Edit
+    // NEW/MODIFIED: Custom Modal Handlers (Request 5)
+    function closeCustomModal() {
+        document.getElementById('custom-modal-backdrop').classList.add('hidden');
+        document.getElementById('custom-alert-modal').classList.add('hidden');
+        document.getElementById('custom-confirm-modal').classList.add('hidden');
+        globalConfirmCallback = null;
+    }
+
+    function showCustomAlert(message, title = 'Notification', type = 'info') {
+        const backdrop = document.getElementById('custom-modal-backdrop');
+        const modal = document.getElementById('custom-alert-modal');
+        const titleEl = document.getElementById('custom-alert-title');
+        const messageEl = document.getElementById('custom-alert-message');
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+
+        titleEl.classList.remove('text-red-600', 'text-green-600', 'text-gray-800');
+        if (type === 'error') titleEl.classList.add('text-red-600');
+        else if (type === 'success') titleEl.classList.add('text-green-600');
+        else titleEl.classList.add('text-gray-800');
+
+        backdrop.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    }
+
+    function showCustomConfirm(message, onConfirm, title = 'Confirmation Required', confirmText = 'Confirm') {
+        const backdrop = document.getElementById('custom-modal-backdrop');
+        const modal = document.getElementById('custom-confirm-modal');
+        const titleEl = document.getElementById('custom-confirm-title');
+        const messageEl = document.getElementById('custom-confirm-message');
+        const okBtn = document.getElementById('custom-confirm-ok');
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        okBtn.textContent = confirmText;
+
+        globalConfirmCallback = onConfirm;
+
+        // Remove previous listeners and add a new one
+        okBtn.onclick = () => {
+            if (globalConfirmCallback) {
+                globalConfirmCallback();
+            }
+            closeCustomModal();
+        };
+
+        backdrop.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    }
+    // END Custom Modal Handlers
+
     function cleanupEditModal() {
         const form = document.getElementById('edit-user-form');
         
@@ -105,7 +188,6 @@
         document.getElementById('edit-point-id').parentNode.classList.remove('hidden'); 
     }
 
-    // MODIFIED: closeEditModal now calls cleanup
     function closeEditModal() {
         cleanupEditModal();
         document.getElementById('edit-modal').classList.add('hidden');
@@ -123,8 +205,9 @@
         document.getElementById('token-popup').classList.add('hidden');
     }
 
+    // Handlers for the Token Popup (Request 6)
     document.getElementById('token-popup-close').addEventListener('click', hideTokenPopup);
-    document.getElementById('token-popup-close-btn').addEventListener('click', hideTokenPopup);
+    document.getElementById('token-popup-close-icon').addEventListener('click', hideTokenPopup);
 
     // Date formatter
     function formatDateIso(dateStr) {
@@ -242,12 +325,11 @@
         document.getElementById('back-role').addEventListener('click', () => { currentLoginRole = null; renderRoleSelection(); });
     }
 
+    // MODIFIED: renderUserManagement (Request 2 Fix)
     async function renderUserManagement(role) {
-        // Fetch points and users BEFORE rendering the form
         const isOwner = user && user.role === 'owner';
         const isManager = user && user.role === 'manager';
         
-        // Show loading message while fetching
         appRoot.innerHTML = `
             <div class="flex items-center justify-center min-h-screen text-gray-600">
                 <div class="w-8 h-8 border-4 border-t-4 border-blue-500 border-opacity-30 rounded-full animate-spin mr-3"></div>
@@ -255,24 +337,21 @@
             </div>
         `;
         
-        // Await fetches only if data is missing or owner
-        if (isOwner) {
-            if (currentPoints.length === 0) await fetchPoints();
-            if (allUsers.length === 0) await fetchAllUsersAndManagers();
+        // Await fetches
+        if (isOwner || isManager) {
+            await fetchPoints();
+            await fetchAllUsersAndManagers();
         }
 
         const isManagerView = (role === 'manager');
         const title = isManagerView ? 'Add New Manager' : 'Add New Driver';
         const color = isManagerView ? 'yellow' : 'green';
 
-        // Get assigned point info
         const assignedPointId = user.pointId && (typeof user.pointId === 'object') ? user.pointId._id : user.pointId;
-        const assignedPointName = user.pointId && (typeof user.pointId === 'object') ? user.pointId.name : 'Not Found';
         const managerCreatingDriver = isManager && role === 'driver';
 
-        // --- NEW/MODIFIED CHECK FOR LOCATION DATA ---
+        // --- CHECK FOR LOCATION DATA ---
         if (isOwner && currentPoints.length === 0) {
-             // Owner scenario: Needs points to create anything
              appRoot.innerHTML = `
                 <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4">
                     <div class="text-center p-6 bg-white rounded-lg shadow-xl">
@@ -286,7 +365,6 @@
         }
         
         if (managerCreatingDriver && !assignedPointId) {
-             // Manager creating driver scenario: Manager must have an assigned point
              appRoot.innerHTML = `
                 <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4">
                     <div class="text-center p-6 bg-white rounded-lg shadow-xl">
@@ -298,29 +376,37 @@
             `;
             return;
         }
-        // --- END NEW/MODIFIED CHECK ---
+        // --- END CHECK ---
 
 
         const pointOptions = (currentPoints || []).map(p => `<option value="${p._id}">${p.name}</option>`).join('');
+        const managerOptions = (currentManagers || []).map(m => `<option value="${m._id}">${m.fullName} (${m.username})</option>`).join('');
 
-        // Manager select: if owner showing list, else if manager creating driver, auto-assign to self
-        let managerSelectHtml = '';
-        if (role === 'driver') {
-            if (isManager) {
-                // manager creating driver -> auto assign to self (disabled)
-                managerSelectHtml = `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Assign Manager</label>
-                        <select id="managerId" name="managerId" disabled class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                            <option value="${user._id}">${user.fullName || user.username} (You)</option>
-                        </select>
-                        <p class="text-xs text-gray-500 mt-1">Driver will be automatically assigned to you.</p>
-                    </div>
-                `;
-            } else if (isOwner) {
-                // owner creating driver -> choose from managers
-                const managerOptions = (currentManagers || []).map(m => `<option value="${m._id}">${m.fullName} (${m.username})</option>`).join('');
-                managerSelectHtml = `
+
+        // --- NEW LOGIC FOR POINT AND MANAGER SELECTION HTML (Request 2.4, 2.5) ---
+        let pointAndManagerSelectHtml = '';
+        if (managerCreatingDriver) {
+            // Manager adding a Driver: Auto-assign manager's point and manager's ID, and HIDE both fields.
+            pointAndManagerSelectHtml = `
+                <div class="hidden"> 
+                    <input type="hidden" id="pointId" name="pointId" value="${assignedPointId || ''}" required>
+                    <input type="hidden" id="managerId" name="managerId" value="${user._id}" required>
+                </div>
+            `;
+        } else {
+            // Owner adding Manager/Driver OR Manager creating Manager (shouldn't happen, but safe)
+            pointAndManagerSelectHtml = `
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
+                    <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <option value="">-- Select Point --</option>
+                        ${pointOptions}
+                    </select>
+                </div>
+            `;
+
+            if (role === 'driver') {
+                pointAndManagerSelectHtml += `
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Assign Manager</label>
                         <select id="managerId" name="managerId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
@@ -330,33 +416,6 @@
                     </div>
                 `;
             }
-        }
-        
-        // --- NEW LOGIC FOR POINT SELECTION HTML ---
-        let pointSelectHtml = '';
-        if (managerCreatingDriver) {
-            // Manager adding a Driver: Auto-assign manager's point and show display field
-            pointSelectHtml = `
-                <div class="hidden"> 
-                    <input type="hidden" id="pointId" name="pointId" value="${assignedPointId || ''}" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Assigned Location</label>
-                    <p class="mt-1 block w-full px-3 py-2 text-gray-800 bg-gray-100 rounded-md font-semibold">${assignedPointName}</p>
-                    <p class="text-xs text-gray-500 mt-1">Driver will be automatically assigned to your location.</p>
-                </div>
-            `;
-        } else {
-            // Owner adding Manager/Driver
-            pointSelectHtml = `
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
-                    <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                        <option value="">-- Select Point --</option>
-                        ${pointOptions}
-                    </select>
-                </div>
-            `;
         }
         // --- END NEW LOGIC ---
 
@@ -374,6 +433,10 @@
 
                         <form id="create-user-form" data-role="${role}" class="space-y-4">
                             <div>
+                                <label class="block text-sm font-medium text-gray-700">Full Name</label>
+                                <input type="text" id="fullName" name="fullName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700">Username (Login ID)</label>
                                 <input type="text" id="newUsername" name="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                             </div>
@@ -381,14 +444,8 @@
                                 <label class="block text-sm font-medium text-gray-700">Password</label>
                                 <input type="password" id="newPassword" name="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Full Name</label>
-                                <input type="text" id="fullName" name="fullName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                            </div>
 
-                            ${pointSelectHtml}
-
-                            ${managerSelectHtml}
+                            ${pointAndManagerSelectHtml}
 
                             <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 font-semibold mt-6">Create ${role.toUpperCase()}</button>
                             <p id="user-create-message" class="text-sm mt-3 text-center"></p>
@@ -401,7 +458,7 @@
         document.getElementById('create-user-form').addEventListener('submit', handleCreateUserSubmit);
     }
 
-    // NEW: Render Location/Point Management UI (unchanged)
+    // MODIFIED: renderPointTable
     function renderPointTable(points) {
         if (!points || points.length === 0) {
             return '<p class="text-center text-gray-500 p-4">No Locations (Points) found. Create one above.</p>';
@@ -426,8 +483,8 @@
                 <table class="min-w-full divide-y divide-gray-300">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Name</th>
-                            <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Address</th>
+                            <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Name (Hotel/Function)</th>
+                            <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Address/Complex</th>
                             <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Created</th>
                             <th class="relative py-3.5 pl-3 pr-4 sm:pr-6"></th>
                         </tr>
@@ -440,6 +497,7 @@
         `;
     }
 
+    // MODIFIED: renderPointList (Request 1)
     async function renderPointList() {
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
@@ -453,11 +511,11 @@
                         <h2 class="text-2xl font-bold text-blue-700 mb-6 text-center">Create New Location Point</h2>
                         <form id="create-point-form" class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Location Name (e.g., Hotel Taj)</label>
+                                <label class="block text-sm font-medium text-gray-700">Location Name (Hotel/Function)</label>
                                 <input type="text" id="name" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Address / Description</label>
+                                <label class="block text-sm font-medium text-gray-700">Address / Complex / Description (Optional)</label>
                                 <input type="text" id="address" name="address" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                             </div>
                             <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 font-semibold mt-6">Create Location</button>
@@ -549,7 +607,7 @@
         `;
     }
 
-    // MODIFIED: renderUserList to include Add buttons for Owner (Request 1)
+    // MODIFIED: renderUserList (unchanged from last time)
     async function renderUserList() {
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
@@ -618,7 +676,7 @@
         }).join('');
     }
 
-    // MODIFIED: renderDashboard to move Owner buttons
+    // MODIFIED: renderDashboard (Request 3 & 4)
     function renderDashboard() {
         if (!user) return renderRoleSelection();
 
@@ -630,8 +688,7 @@
             <div class="min-h-screen bg-gray-50 pb-20">
                 <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
                     <div>
-                        <h1 class="text-lg font-semibold">${user.fullName || user.username} (${(user.role || '').toUpperCase()})</h1>
-                        <p class="text-xs">Location: ${user.pointId && typeof user.pointId === 'object' ? user.pointId.name : (user.pointId || 'Not Assigned')}</p>
+                        <h1 class="text-lg font-semibold">${user.fullName || user.username}</h1>
                     </div>
                     <div class="flex items-center gap-3">
                         ${(isOwner) ? `
@@ -728,7 +785,7 @@
         }
     }
 
-    // --- API HANDLERS (unchanged unless specified) ---
+    // --- API HANDLERS ---
     async function handleLoginSubmit(event) {
         event.preventDefault();
         const username = event.target.username.value;
@@ -775,7 +832,7 @@
 
         const formData = {
             name: form.name.value,
-            address: form.address.value,
+            address: form.address.value, // Used for Address / Complex
         };
 
         try {
@@ -797,15 +854,18 @@
             } else {
                 const errorData = await res.json();
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                showCustomAlert(errorData.message || 'Failed to create location.', 'Creation Failed', 'error');
                 messageElement.textContent = errorData.message || 'Failed to create location.';
             }
         } catch (err) {
             console.error('Create Point error', err);
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            showCustomAlert('Network error: Could not connect to server.', 'Creation Failed', 'error');
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
 
+    // MODIFIED: handleCreateUserSubmit (Request 2 Fix)
     async function handleCreateUserSubmit(event) {
         event.preventDefault();
         const form = event.target;
@@ -815,13 +875,15 @@
         messageElement.textContent = `Creating ${role}...`;
 
         let managerId = null;
+        let pointId = form.pointId ? form.pointId.value : null; // Hidden field will contain value for manager/driver
 
+        // Overwrite managerId based on scenario (Owner selects, Manager is self-assigned via hidden field)
         if (role === 'driver') {
             if (user.role === 'manager') {
-                // FIX 3: If logged-in user is a Manager creating a Driver, use the Manager's own ID
+                // If Manager is logged in, their ID is used for managerId and pointId is taken from hidden field
                 managerId = user._id; 
             } else if (user.role === 'owner') {
-                // If logged-in user is Owner, take the value from the selected manager dropdown
+                // If Owner is logged in, take the value from the selected manager dropdown
                 const managerIdField = form.querySelector('#managerId');
                 if (managerIdField) {
                     managerId = managerIdField.value;
@@ -834,14 +896,14 @@
             password: form.password.value,
             fullName: form.fullName.value,
             role: role,
-            // pointId will come from the visible/hidden form field
-            pointId: form.pointId.value, 
+            pointId: pointId, 
             managerId: role === 'driver' ? managerId : null
         };
-
-        if (role === 'driver' && !payload.managerId) {
+        
+        // This check is the important part to prevent the reported error (Request 2)
+        if (role === 'driver' && (!payload.managerId || !payload.pointId)) {
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
-            messageElement.textContent = 'Error: Driver must be assigned to a Manager.';
+            messageElement.textContent = 'Error: Driver must be assigned to a Manager and Location.';
             return;
         }
         
@@ -869,41 +931,45 @@
             } else {
                 const err = await res.json();
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                showCustomAlert(err.message || `Failed to create ${role}.`, 'Creation Failed', 'error');
                 messageElement.textContent = err.message || `Failed to create ${role}.`;
             }
         } catch (err) {
             console.error('Create User error', err);
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            showCustomAlert('Network error: Could not connect to server.', 'Creation Failed', 'error');
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
 
+    // MODIFIED: handleUserDelete (Request 5)
     async function handleUserDelete(userId) {
-        if (!confirm('Are you sure you want to permanently delete this user? This cannot be undone.')) return;
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
-            });
-            if (res.ok) {
-                alert('User deleted successfully.');
-                await fetchAllUsersAndManagers();
-                renderUserList();
-            } else {
-                const err = await res.json();
-                alert(err.message || 'Failed to delete user.');
+        showCustomConfirm('Are you sure you want to permanently delete this user? This cannot be undone.', async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showCustomAlert('User deleted successfully.', 'Success', 'success');
+                    await fetchAllUsersAndManagers();
+                    renderUserList();
+                } else {
+                    const err = await res.json();
+                    showCustomAlert(err.message || 'Failed to delete user.', 'Deletion Failed', 'error');
+                }
+            } catch (err) {
+                console.error('Delete User error', err);
+                showCustomAlert('Network error: Could not connect to server to delete user.', 'Deletion Failed', 'error');
             }
-        } catch (err) {
-            console.error('Delete User error', err);
-            alert('Network error: Could not connect to server to delete user.');
-        }
+        }, 'Delete User Confirmation', 'Delete Permanently');
     }
 
-    // MODIFIED: handleUserEdit (unchanged)
+    // MODIFIED: handleUserEdit (Request 5)
     async function handleUserEdit(userId) {
         const userToEdit = allUsers.find(u => u._id === userId);
         if (!userToEdit) {
-            alert('User not found in list.');
+            showCustomAlert('User not found in list.', 'Error', 'error');
             return;
         }
 
@@ -962,47 +1028,52 @@
             if (res.ok) {
                 messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
                 messageElement.textContent = 'User updated successfully!';
+                showCustomAlert('User updated successfully!', 'Success', 'success');
                 await fetchAllUsersAndManagers();
                 renderUserList();
                 setTimeout(closeEditModal, 1000);
             } else {
                 const err = await res.json();
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                showCustomAlert(err.message || 'Failed to update user.', 'Update Failed', 'error');
                 messageElement.textContent = err.message || 'Failed to update user.';
             }
         } catch (err) {
             console.error('Update User error', err);
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            showCustomAlert('Network error: Could not connect to server.', 'Update Failed', 'error');
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
     
-    // NEW: Handlers for Point Edit/Delete (unchanged)
+    // MODIFIED: handlePointDelete (Request 5)
     async function handlePointDelete(pointId, pointName) {
-        if (!confirm(`Are you sure you want to permanently delete the location: ${pointName}? This cannot be undone.`)) return;
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/points/admin/delete/${pointId}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
-            });
-            if (res.ok) {
-                alert(`Location '${pointName}' deleted successfully.`);
-                await fetchPoints();
-                renderPointList();
-            } else {
-                const err = await res.json();
-                alert(err.message || 'Failed to delete location.');
+        showCustomConfirm(`Are you sure you want to permanently delete the location: ${pointName}? This cannot be undone.`, async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/points/admin/delete/${pointId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showCustomAlert(`Location '${pointName}' deleted successfully.`, 'Success', 'success');
+                    await fetchPoints();
+                    renderPointList();
+                } else {
+                    const err = await res.json();
+                    showCustomAlert(err.message || 'Failed to delete location.', 'Deletion Failed', 'error');
+                }
+            } catch (err) {
+                console.error('Delete Point error', err);
+                showCustomAlert('Network error: Could not connect to server to delete location.', 'Deletion Failed', 'error');
             }
-        } catch (err) {
-            console.error('Delete Point error', err);
-            alert('Network error: Could not connect to server to delete location.');
-        }
+        }, 'Delete Location Confirmation', 'Delete Permanently');
     }
 
+    // MODIFIED: handlePointEdit (Request 1)
     async function handlePointEdit(pointId) {
         const pointToEdit = currentPoints.find(p => p._id === pointId);
         if (!pointToEdit) {
-            alert('Location not found in list.');
+            showCustomAlert('Location not found in list.', 'Error', 'error');
             return;
         }
 
@@ -1012,16 +1083,16 @@
         // HACK: Reusing generic fields for point edit
         document.getElementById('edit-modal-title').textContent = `Edit Location: ${pointToEdit.name}`;
         
-        // Setup fields for Name (using fullName field)
+        // Setup fields for Name (using fullName field) - Request 1
         const tempNameLabel = document.getElementById('edit-full-name').parentNode.querySelector('label');
-        tempNameLabel.textContent = 'Location Name';
+        tempNameLabel.textContent = 'Location Name (Hotel/Function)';
         document.getElementById('edit-full-name').value = pointToEdit.name || '';
         document.getElementById('edit-full-name').name = 'name'; 
 
-        // Add a temporary input for Address
+        // Add a temporary input for Address - Request 1
         const addressInputHtml = `
             <div id="edit-address-container">
-                <label for="edit-address" class="block text-sm font-medium text-gray-700">Address / Description</label>
+                <label for="edit-address" class="block text-sm font-medium text-gray-700">Address / Complex / Description (Optional)</label>
                 <input type="text" id="edit-address" name="address" value="${pointToEdit.address || ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
             </div>
         `;
@@ -1061,22 +1132,24 @@
             if (res.ok) {
                 messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
                 messageElement.textContent = 'Location updated successfully!';
+                showCustomAlert('Location updated successfully!', 'Success', 'success');
                 await fetchPoints();
                 renderPointList();
                 setTimeout(closeEditModal, 1000);
             } else {
                 const err = await res.json();
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                showCustomAlert(err.message || 'Failed to update location.', 'Update Failed', 'error');
                 messageElement.textContent = err.message || 'Failed to update location.';
             }
         } catch (err) {
             console.error('Update Point error', err);
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            showCustomAlert('Network error: Could not connect to server.', 'Update Failed', 'error');
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
-    // End New Point Handlers
-
+    
     async function handleCarInSubmit(event) {
         event.preventDefault();
         const carNumber = event.target.carNumber.value.trim().toUpperCase();
@@ -1146,39 +1219,43 @@
             } else {
                 const err = await res.json();
                 inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+                showCustomAlert(err.message || 'Failed to generate token.', 'Token Generation Failed', 'error');
                 inMessage.textContent = err.message || 'Failed to generate token.';
             }
         } catch (err) {
             console.error('Car IN error', err);
             inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+            showCustomAlert('Network error: Could not connect to server.', 'Token Generation Failed', 'error');
             inMessage.textContent = 'Network error: Could not connect to server.';
         }
     }
 
+    // MODIFIED: handleCarOutSubmit (Request 5)
     async function handleCarOutSubmit(tokenId, btn) {
-        if (!confirm('Are you sure you want to mark this car OUT?')) return;
-        btn.textContent = 'Processing...';
-        btn.disabled = true;
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
-                method: 'POST',
-                headers: getAuthHeaders()
-            });
-            if (res.ok) {
-                alert('Car marked OUT successfully!');
-                await fetchTokens();
-            } else {
-                const err = await res.json();
-                alert(err.message || 'Failed to mark car OUT.');
+        showCustomConfirm('Are you sure you want to mark this car OUT?', async () => {
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showCustomAlert('Car marked OUT successfully!', 'Success', 'success');
+                    await fetchTokens();
+                } else {
+                    const err = await res.json();
+                    showCustomAlert(err.message || 'Failed to mark car OUT.', 'Car OUT Failed', 'error');
+                    btn.textContent = 'Car OUT';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error('Car OUT error', err);
+                showCustomAlert('Network error: Could not connect to server.', 'Car OUT Failed', 'error');
                 btn.textContent = 'Car OUT';
                 btn.disabled = false;
             }
-        } catch (err) {
-            console.error('Car OUT error', err);
-            alert('Network error: Could not connect to server.');
-            btn.textContent = 'Car OUT';
-            btn.disabled = false;
-        }
+        }, 'Car OUT Confirmation', 'Mark OUT');
     }
 
     function attachCarOutHandlers() {
