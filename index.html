@@ -28,7 +28,8 @@
         let user = JSON.parse(localStorage.getItem('user'));
         let currentTokens = []; 
         let currentLoginRole = null; 
-        let currentPoints = []; // New state to hold available points
+        let currentPoints = []; // Holds available points
+        let currentManagers = []; // Holds available managers (NEW)
 
         // --- 3. UTILITY FUNCTIONS ---
 
@@ -45,6 +46,7 @@
             currentTokens = [];
             currentLoginRole = null;
             currentPoints = [];
+            currentManagers = [];
             renderApp();
         }
 
@@ -76,9 +78,27 @@
                 return true;
             } catch (error) {
                 console.error("Points fetch error:", error);
-                // agar Owner login hai to error message dikhao
                 if (user && user.role === 'owner') {
                     alert('Error fetching locations. Check console.');
+                }
+                return false;
+            }
+        }
+        
+        async function fetchManagers() {
+            try {
+                // Fetch all non-owner users and filter for managers
+                const response = await fetch(`${API_BASE_URL}/api/users/admin/users`, { headers: getAuthHeaders() });
+                if (!response.ok) throw new Error('Failed to fetch users');
+                const users = await response.json();
+                
+                // Filter users to only include managers
+                currentManagers = users.filter(u => u.role === 'manager'); 
+                return true;
+            } catch (error) {
+                console.error("Managers fetch error:", error);
+                if (user && user.role === 'owner') {
+                    console.error('Error fetching managers:', error);
                 }
                 return false;
             }
@@ -88,15 +108,14 @@
         // --- 4. RENDER COMPONENTS ---
 
         function renderSplashScreen() {
-            appRoot.innerHTML = `
-                <div class="flex flex-col items-center justify-center min-h-screen bg-green-700 text-white animate-fadeIn">
+            // ... (Same as before)
+            appRoot.innerHTML = `<div class="flex flex-col items-center justify-center min-h-screen bg-green-700 text-white animate-fadeIn">
                     <h1 class="text-5xl font-extrabold tracking-widest">LIFE CARE</h1>
                     <p class="text-xl mt-2 font-light">VALET PARKING</p>
                     <div class="mt-8">
                         <div class="w-8 h-8 border-4 border-t-4 border-white border-opacity-30 rounded-full animate-spin"></div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
         function renderRoleSelection() {
@@ -164,11 +183,20 @@
         }
 
         async function renderUserManagement(role) {
-            // Check if points are loaded for the dropdown
-            if (user.role === 'owner' && currentPoints.length === 0) {
-                 const fetched = await fetchPoints();
-                 if (!fetched) {
-                    alert('Could not load locations. Please check backend.');
+            // Check if points and managers are loaded for the dropdowns
+            if (user.role === 'owner') {
+                 let fetchedPoints = true;
+                 if (currentPoints.length === 0) {
+                     fetchedPoints = await fetchPoints();
+                 }
+                 
+                 let fetchedManagers = true;
+                 if (role === 'driver' && currentManagers.length === 0) {
+                     fetchedManagers = await fetchManagers();
+                 }
+
+                 if (!fetchedPoints || (role === 'driver' && !fetchedManagers)) {
+                    alert('Could not load required data (Locations/Managers). Please check backend.');
                     return renderDashboard(); 
                  }
             }
@@ -178,6 +206,12 @@
             const color = isManager ? 'yellow' : 'green';
 
             let pointOptions = currentPoints.map(p => `<option value="${p._id}">${p.name} (ID: ${p._id.slice(-4)})</option>`).join('');
+            
+            let managerOptions = '';
+            if (!isManager) {
+                managerOptions = currentManagers.map(m => `<option value="${m._id}">${m.fullName} (${m.username})</option>`).join('');
+            }
+
 
             appRoot.innerHTML = `
                 <div class="min-h-screen bg-gray-50 pb-20">
@@ -214,8 +248,11 @@
                                 
                                 ${!isManager ? `
                                     <div>
-                                        <label for="managerId" class="block text-sm font-medium text-gray-700">Assign Manager ID</label>
-                                        <input type="text" id="managerId" name="managerId" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="Manager's User ID (MongoDB ID)">
+                                        <label for="managerId" class="block text-sm font-medium text-gray-700">Assign Manager</label>
+                                        <select id="managerId" name="managerId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                                            <option value="">-- Select Manager --</option>
+                                            ${managerOptions}
+                                        </select>
                                     </div>
                                 ` : ''}
 
@@ -232,8 +269,8 @@
         }
         
         function renderPointCreation() {
-            appRoot.innerHTML = `
-                <div class="min-h-screen bg-gray-50 pb-20">
+            // ... (Same as before)
+            appRoot.innerHTML = `<div class="min-h-screen bg-gray-50 pb-20">
                     <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
                         <h1 class="text-lg font-semibold">Create New Location Point</h1>
                         <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Back to Dashboard</button>
@@ -260,8 +297,7 @@
                             </form>
                         </div>
                     </main>
-                </div>
-            `;
+                </div>`;
             document.getElementById('create-point-form').addEventListener('submit', handlePointCreateSubmit);
         }
 
@@ -351,13 +387,15 @@
                 fetchTokens();
             }
             
-            // Fetch points for owner when dashboard loads
+            // Fetch points and managers for owner when dashboard loads
             if (user.role === 'owner') {
                 fetchPoints();
+                fetchManagers();
             }
         }
 
         function renderTokenList() {
+            // ... (Same as before)
             const activeTokens = currentTokens.filter(t => !t.outTime);
 
             if (activeTokens.length === 0) {
@@ -385,6 +423,7 @@
         // --- 5. ASYNC HANDLERS (API CALLS) ---
 
         async function handleLoginSubmit(event) {
+            // ... (Same as before)
             event.preventDefault();
             const username = event.target.username.value;
             const password = event.target.password.value;
@@ -422,6 +461,7 @@
         }
         
         async function handlePointCreateSubmit(event) {
+            // ... (Same as before)
             event.preventDefault();
             const form = event.target;
             const messageElement = document.getElementById('point-create-message');
@@ -470,9 +510,17 @@
                 password: form.password.value,
                 fullName: form.fullName.value,
                 role: role,
-                pointId: form.pointId.value, // Now gets ID from the dropdown
-                managerId: role === 'driver' && form.managerId.value ? form.managerId.value : null 
+                pointId: form.pointId.value, // ID from the dropdown
+                // managerId dropdown se aa raha hai. Agar Driver nahi hai, toh null jaayega.
+                managerId: role === 'driver' ? form.managerId.value : null 
             };
+            
+            // Validation: Ensure manager is selected for driver
+            if (role === 'driver' && !formData.managerId) {
+                messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                messageElement.textContent = 'Error: Driver must be assigned to a Manager.';
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_BASE_URL}/api/users/admin/create-user`, {
@@ -486,6 +534,9 @@
                     messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
                     messageElement.textContent = `${role.toUpperCase()} ${data.username} created successfully! ID: ${data.id}`;
                     form.reset();
+                    if (role === 'manager') {
+                        fetchManagers(); // Agar naya manager bana hai, toh list refresh karein
+                    }
                 } else {
                     const errorData = await response.json();
                     messageElement.className = 'text-red-500 text-sm mt-3 text-center';
@@ -499,7 +550,6 @@
         }
         
         async function handleCarInSubmit(event) {
-            event.preventDefault();
             // ... (Same as before)
         }
 
