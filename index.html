@@ -243,7 +243,7 @@
     }
 
     async function renderUserManagement(role) {
-        // FIX 1: Fetch points and users BEFORE rendering the form
+        // Fetch points and users BEFORE rendering the form
         const isOwner = user && user.role === 'owner';
         const isManager = user && user.role === 'manager';
         
@@ -255,11 +255,9 @@
             </div>
         `;
         
-        // Await fetches only if data is missing
-        if (isOwner || isManager) {
-            if (currentPoints.length === 0) await fetchPoints();
-        }
+        // Await fetches only if data is missing or owner
         if (isOwner) {
+            if (currentPoints.length === 0) await fetchPoints();
             if (allUsers.length === 0) await fetchAllUsersAndManagers();
         }
 
@@ -267,19 +265,40 @@
         const title = isManagerView ? 'Add New Manager' : 'Add New Driver';
         const color = isManagerView ? 'yellow' : 'green';
 
-        // Check if required data is available
-        if (currentPoints.length === 0 && (isManagerView || role === 'driver')) {
-            appRoot.innerHTML = `
+        // Get assigned point info
+        const assignedPointId = user.pointId && (typeof user.pointId === 'object') ? user.pointId._id : user.pointId;
+        const assignedPointName = user.pointId && (typeof user.pointId === 'object') ? user.pointId.name : 'Not Found';
+        const managerCreatingDriver = isManager && role === 'driver';
+
+        // --- NEW/MODIFIED CHECK FOR LOCATION DATA ---
+        if (isOwner && currentPoints.length === 0) {
+             // Owner scenario: Needs points to create anything
+             appRoot.innerHTML = `
                 <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4">
                     <div class="text-center p-6 bg-white rounded-lg shadow-xl">
                         <h2 class="text-xl font-bold text-red-600 mb-4">Error: Location Data Missing</h2>
-                        <p class="text-gray-700 mb-6">Owner: Please create at least one location point first.</p>
+                        <p class="text-gray-700 mb-6">Owner: Please create at least one location point first (Manage Locations).</p>
                         <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded text-sm">Back to Dashboard</button>
                     </div>
                 </div>
             `;
             return;
         }
+        
+        if (managerCreatingDriver && !assignedPointId) {
+             // Manager creating driver scenario: Manager must have an assigned point
+             appRoot.innerHTML = `
+                <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                    <div class="text-center p-6 bg-white rounded-lg shadow-xl">
+                        <h2 class="text-xl font-bold text-red-600 mb-4">Error: Location Missing</h2>
+                        <p class="text-gray-700 mb-6">You must be assigned a location by the Owner before you can add a Driver.</p>
+                        <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded text-sm">Back to Dashboard</button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        // --- END NEW/MODIFIED CHECK ---
 
 
         const pointOptions = (currentPoints || []).map(p => `<option value="${p._id}">${p.name}</option>`).join('');
@@ -312,6 +331,34 @@
                 `;
             }
         }
+        
+        // --- NEW LOGIC FOR POINT SELECTION HTML ---
+        let pointSelectHtml = '';
+        if (managerCreatingDriver) {
+            // Manager adding a Driver: Auto-assign manager's point and show display field
+            pointSelectHtml = `
+                <div class="hidden"> 
+                    <input type="hidden" id="pointId" name="pointId" value="${assignedPointId || ''}" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Assigned Location</label>
+                    <p class="mt-1 block w-full px-3 py-2 text-gray-800 bg-gray-100 rounded-md font-semibold">${assignedPointName}</p>
+                    <p class="text-xs text-gray-500 mt-1">Driver will be automatically assigned to your location.</p>
+                </div>
+            `;
+        } else {
+            // Owner adding Manager/Driver
+            pointSelectHtml = `
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
+                    <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <option value="">-- Select Point --</option>
+                        ${pointOptions}
+                    </select>
+                </div>
+            `;
+        }
+        // --- END NEW LOGIC ---
 
         // Render the main form now that data is ready
         appRoot.innerHTML = `
@@ -339,13 +386,7 @@
                                 <input type="text" id="fullName" name="fullName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                             </div>
 
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
-                                <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                                    <option value="">-- Select Point --</option>
-                                    ${pointOptions}
-                                </select>
-                            </div>
+                            ${pointSelectHtml}
 
                             ${managerSelectHtml}
 
@@ -360,7 +401,7 @@
         document.getElementById('create-user-form').addEventListener('submit', handleCreateUserSubmit);
     }
 
-    // NEW: Render Location/Point Management UI
+    // NEW: Render Location/Point Management UI (unchanged)
     function renderPointTable(points) {
         if (!points || points.length === 0) {
             return '<p class="text-center text-gray-500 p-4">No Locations (Points) found. Create one above.</p>';
@@ -448,7 +489,7 @@
         }
     }
     
-    // ... renderUserTable, renderUserList, renderTokenList (unchanged) ...
+    // ... renderUserTable (unchanged)
     function renderUserTable(users) {
         if (!users || users.length === 0) {
             return '<p class="text-center text-gray-500 p-4">No Managers or Drivers found.</p>';
@@ -508,6 +549,7 @@
         `;
     }
 
+    // MODIFIED: renderUserList to include Add buttons for Owner (Request 1)
     async function renderUserList() {
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
@@ -529,6 +571,23 @@
         try {
             const fetched = await fetchAllUsersAndManagers();
             if (!fetched) throw new Error('Could not fetch users');
+            
+            // --- OWNER BUTTONS ADDED HERE ---
+            const isOwner = user && user.role === 'owner';
+            if (isOwner) {
+                const ownerButtons = `
+                    <div class="flex flex-col sm:flex-row justify-start gap-3 mb-6">
+                        <button id="add-manager-btn" class="bg-blue-600 text-white py-2 px-4 rounded text-sm font-semibold hover:bg-blue-700">+ Add New Manager</button>
+                        <button id="add-driver-btn-owner" class="bg-green-600 text-white py-2 px-4 rounded text-sm font-semibold hover:bg-green-700">+ Add New Driver</button>
+                    </div>
+                `;
+                container.insertAdjacentHTML('afterbegin', ownerButtons);
+                document.getElementById('add-manager-btn').addEventListener('click', () => renderUserManagement('manager'));
+                document.getElementById('add-driver-btn-owner').addEventListener('click', () => renderUserManagement('driver'));
+            }
+            // --- END OWNER BUTTONS ---
+
+
             document.getElementById('list-message').remove();
             container.insertAdjacentHTML('beforeend', renderUserTable(allUsers));
         } catch (err) {
@@ -559,6 +618,7 @@
         }).join('');
     }
 
+    // MODIFIED: renderDashboard to move Owner buttons
     function renderDashboard() {
         if (!user) return renderRoleSelection();
 
@@ -575,9 +635,7 @@
                     </div>
                     <div class="flex items-center gap-3">
                         ${(isOwner) ? `
-                            <button id="add-manager-btn" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Manager</button>
-                            <button id="add-driver-btn-owner" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Driver</button>
-                            <button id="manage-users-btn" class="bg-gray-600 text-white py-1 px-3 rounded text-sm">Manage Users</button>
+                            <button id="manage-users-btn" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">Manage Users (M & D)</button>
                             <button id="manage-points-btn" class="bg-purple-600 text-white py-1 px-3 rounded text-sm">Manage Locations</button>
                         ` : ''}
 
@@ -630,8 +688,6 @@
         document.getElementById('logout-button').addEventListener('click', handleLogout);
 
         if (isOwner) {
-            document.getElementById('add-manager-btn').addEventListener('click', () => renderUserManagement('manager'));
-            document.getElementById('add-driver-btn-owner').addEventListener('click', () => renderUserManagement('driver'));
             document.getElementById('manage-users-btn').addEventListener('click', renderUserList);
             document.getElementById('manage-points-btn').addEventListener('click', renderPointList);
         }
@@ -672,7 +728,7 @@
         }
     }
 
-    // --- API HANDLERS ---
+    // --- API HANDLERS (unchanged unless specified) ---
     async function handleLoginSubmit(event) {
         event.preventDefault();
         const username = event.target.username.value;
@@ -778,7 +834,8 @@
             password: form.password.value,
             fullName: form.fullName.value,
             role: role,
-            pointId: form.pointId.value,
+            // pointId will come from the visible/hidden form field
+            pointId: form.pointId.value, 
             managerId: role === 'driver' ? managerId : null
         };
 
@@ -787,6 +844,13 @@
             messageElement.textContent = 'Error: Driver must be assigned to a Manager.';
             return;
         }
+        
+        if (payload.role !== 'owner' && !payload.pointId) {
+            messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            messageElement.textContent = `${role.toUpperCase()} must be assigned to a Location.`;
+            return;
+        }
+
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/users/admin/create-user`, {
@@ -835,7 +899,7 @@
         }
     }
 
-    // MODIFIED: handleUserEdit to use cleanup and restore modal state
+    // MODIFIED: handleUserEdit (unchanged)
     async function handleUserEdit(userId) {
         const userToEdit = allUsers.find(u => u._id === userId);
         if (!userToEdit) {
@@ -913,7 +977,7 @@
         }
     }
     
-    // NEW: Handlers for Point Edit/Delete
+    // NEW: Handlers for Point Edit/Delete (unchanged)
     async function handlePointDelete(pointId, pointName) {
         if (!confirm(`Are you sure you want to permanently delete the location: ${pointName}? This cannot be undone.`)) return;
         try {
