@@ -142,6 +142,7 @@
         async function fetchAllUsersAndManagers() {
             if (!user) return false; 
             try {
+                // Assuming the backend returns users with populated managerId and pointId for owner view
                 const response = await fetch(`${API_BASE_URL}/api/users/admin/users`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch users');
                 const users = await response.json();
@@ -170,7 +171,7 @@
 
             if (user.role === 'manager') {
                 try {
-                    // Assuming a manager API is available, otherwise this falls back to only self.
+                    // Assuming a manager API is available for their assigned drivers
                     const response = await fetch(`${API_BASE_URL}/api/users/manager/drivers`, { headers: getAuthHeaders() });
                     
                     let drivers = [];
@@ -178,7 +179,7 @@
                          drivers = await response.json();
                     }
                     
-                    // Manager ka khud ka naam bhi list mein add karein
+                    // Manager ka khud ka naam bhi list mein add karein (Requirement 2)
                     const managerAsDriver = { _id: user.id, fullName: user.fullName };
                     
                     // Ensure the manager is at the start of the list
@@ -199,7 +200,7 @@
             document.getElementById('edit-modal').classList.add('hidden');
         }
 
-        // ✅ NEW: Token Modal Functions
+        // ✅ NEW: Token Modal Functions (Requirement 4)
         function renderTokenPopup(tokenData) {
             document.getElementById('popup-token-number').textContent = tokenData.tokenNumber;
             document.getElementById('popup-customer-name').textContent = `Customer: ${tokenData.customerName}`;
@@ -287,7 +288,7 @@
             document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
         }
 
-        // ✅ UPDATED: renderUserManagement to handle Manager's scope
+        // ✅ UPDATED: renderUserManagement to handle Manager's scope (Requirement 3)
         async function renderUserManagement(role, isManagerScope = false) {
              if (user.role === 'owner' || isManagerScope) {
                  let fetchedPoints = true;
@@ -427,7 +428,7 @@
             document.getElementById('create-point-form').addEventListener('submit', handlePointCreateSubmit);
         }
 
-        // ✅ UPDATED: renderUserTable for Manager Name and Date
+        // ✅ UPDATED: renderUserTable for Manager Name and Date (Requirement 1)
         function renderUserTable(users) {
             if (users.length === 0) {
                 return '<p class="text-center text-gray-500 p-4">No Managers or Drivers found.</p>';
@@ -522,7 +523,7 @@
             }
         }
         
-        // ✅ NEW: Manager/Driver Dashboard View with Driver Selection
+        // ✅ NEW: Manager/Driver Dashboard View with Driver Selection (Requirement 2, 3)
         function renderManagerDashboard() {
              const roleAction = user.role === 'manager' ? 'MANAGER ACTIONS' : 'DRIVER DASHBOARD';
 
@@ -714,7 +715,7 @@
         
         // --- 5. ASYNC HANDLERS (API CALLS) ---
 
-        // ✅ RE-INJECTED LOGIN HANDLER WITH ERROR DISPLAY
+        // UPDATED LOGIN HANDLER 
         async function handleLoginSubmit(event) {
             event.preventDefault();
             const username = event.target.username.value;
@@ -967,7 +968,7 @@
             }
         }
         
-        // ✅ UPDATED: Token Generation Logic with Driver Selection and Popup
+        // ✅ UPDATED: Token Generation Logic with Driver Selection and Popup (Requirement 2, 4)
         async function handleCarInSubmit(event) {
             event.preventDefault();
             
@@ -1015,7 +1016,7 @@
                     inMessage.className = 'text-green-600 text-sm mt-2 text-center font-bold';
                     inMessage.textContent = `Token ${data.token.tokenNumber} generated!`;
                     
-                    // ✅ Show Custom Popup
+                    // ✅ Show Custom Popup (Requirement 4)
                     renderTokenPopup({
                         tokenNumber: data.token.tokenNumber,
                         customerName: customerName,
