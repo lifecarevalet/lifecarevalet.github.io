@@ -603,9 +603,9 @@
 
 
         function renderDashboard() {
-            // 🛑 Final check before proceeding
+            // 🛑 CRITICAL SAFETY CHECK: Agar user data missing hai, toh logout karke shuruat mein wapas bhej do.
             if (!user || !user.id || !user.role) {
-                console.error("Critical Error: User data lost after login. Returning to role selection.");
+                console.error("Critical Error: User data lost after login. Rendering role selection.");
                 handleLogout();
                 return renderRoleSelection();
             }
@@ -672,13 +672,16 @@
                 button.addEventListener('click', handleCarOutSubmit);
             });
 
-            // Data fetch calls already run in the background after login, 
-            // but we ensure they are running if the user manually navigates here.
-            if (user.role === 'owner') {
-                fetchPoints();
-                fetchAllUsersAndManagers();
+            // ⚠️ Data fetching ko background mein shuru karein, taki UI block na ho.
+            if (user.role === 'manager' || user.role === 'driver') {
+                fetchAssignedDrivers().catch(e => console.error("BG Fetch Failed: Drivers", e));
             }
-            fetchTokens();
+            fetchTokens().catch(e => console.error("BG Fetch Failed: Tokens", e));
+
+            if (user.role === 'owner') {
+                fetchPoints().catch(e => console.error("BG Fetch Failed: Points", e));
+                fetchAllUsersAndManagers().catch(e => console.error("BG Fetch Failed: Users", e));
+            }
         }
 
         function renderTokenList() {
@@ -731,30 +734,13 @@
                          return;
                     }
 
+                    // 1. Store User Data
                     user = { ...data };
                     localStorage.setItem('user', JSON.stringify(user));
                     errorMessage.textContent = 'Login Successful! Loading Dashboard...';
                     
-                    // 🛑 CRITICAL CHANGE: Immediately render the dashboard.
+                    // 2. 🚨 IMMEDIATE RENDER: This must execute instantly without waiting for network.
                     renderDashboard(); 
-                    
-                    // --- BACKGROUND DATA REFRESH ---
-                    // Fetch data without 'await' so UI thread is not blocked
-                    
-                    if (user.role === 'manager' || user.role === 'driver') {
-                        fetchAssignedDrivers().catch(e => {
-                            console.error("BG Fetch Warning: Failed to fetch assigned drivers.", e);
-                        });
-                    }
-                    
-                    fetchTokens().catch(e => {
-                        console.error("BG Fetch Warning: Failed to fetch tokens.", e);
-                    });
-                    
-                    if (user.role === 'owner') {
-                         fetchPoints().catch(e => console.error("BG Fetch Warning: Failed to fetch points.", e));
-                         fetchAllUsersAndManagers().catch(e => console.error("BG Fetch Warning: Failed to fetch users.", e));
-                    }
                     
                 } else {
                     const errorData = await response.json();
@@ -1075,15 +1061,8 @@
             if (isSplash) {
                 renderSplashScreen();
             } else if (user) {
-                if (user.role === 'manager' || user.role === 'driver') {
-                    // Try to fetch drivers list once before rendering (non-blocking)
-                    fetchAssignedDrivers().catch(e => {
-                        console.error("Critical: Failed to fetch assigned drivers/self. Rendering fallback.", e);
-                    });
-                    renderDashboard(); // Render immediately
-                } else {
-                    renderDashboard();
-                }
+                // UI render immediately, background data fetch happens inside renderDashboard
+                renderDashboard();
             } else {
                 renderRoleSelection(); 
             }
