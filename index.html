@@ -19,7 +19,7 @@
         </div>
 
     <script>
-        // --- 1. CONFIGURATION (Aapka diya hua URL yahan daal diya gaya hai) ---
+        // --- 1. CONFIGURATION ---
         const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app'; 
 
         // --- 2. STATE MANAGEMENT ---
@@ -48,11 +48,19 @@
 
         async function fetchTokens() {
             try {
-                // NOTE: Assuming this route exists and handles data based on user role
                 const response = await fetch(`${API_BASE_URL}/api/tokens/data`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch tokens');
                 currentTokens = await response.json();
-                renderDashboard(); 
+                
+                // IMPORTANT: renderDashboard ko sirf tab call karein jab tokens successfully fetch ho jayein.
+                if (document.getElementById('token-list-message')) {
+                    document.getElementById('token-list-message').textContent = 'Live data fetched.';
+                    document.getElementById('active-tokens-list').innerHTML = renderTokenList();
+                } else {
+                    // Agar dashboard abhi render nahi ho raha hai (jaise login ke baad), toh pura render karo
+                    renderDashboard(); 
+                }
+                 
             } catch (error) {
                 console.error("Token fetch error:", error);
                 // agar token expired ho jaye to logout kar dena
@@ -192,6 +200,7 @@
         // --- END NEW COMPONENT ---
 
         function renderDashboard() {
+            // console.log("--- DEBUG: Rendering Dashboard ---"); // Debugging line
             if (!user) return renderRoleSelection(); 
 
             const dashboardHtml = `
@@ -272,8 +281,6 @@
 
             if (currentTokens.length === 0) {
                 fetchTokens();
-            } else {
-                document.getElementById('token-list-message').textContent = 'Live data fetched.';
             }
         }
 
@@ -331,7 +338,7 @@
                     localStorage.setItem('user', JSON.stringify(user));
                     errorMessage.textContent = 'Login Successful!';
                     await fetchTokens(); 
-                    renderApp();
+                    // renderApp(); // Already called by fetchTokens after success
                 } else {
                     const errorData = await response.json();
                     errorMessage.textContent = errorData.message || 'Login Failed. Invalid Credentials.';
@@ -358,7 +365,8 @@
                 fullName: form.fullName.value,
                 role: role,
                 pointId: form.pointId.value,
-                managerId: role === 'driver' ? form.managerId.value : null
+                // Agar Manager bana rahe hain, toh managerId null hoga
+                managerId: role === 'driver' && form.managerId.value ? form.managerId.value : null 
             };
 
             try {
@@ -386,6 +394,7 @@
         }
         // --- END NEW HANDLER ---
 
+
         async function handleCarInSubmit(event) {
             event.preventDefault();
             const carNumber = event.target.carNumber.value.toUpperCase();
@@ -395,7 +404,6 @@
             inMessage.textContent = 'Generating Token...';
 
             try {
-                // NOTE: Assuming /api/tokens/in is the correct route for checkin
                 const response = await fetch(`${API_BASE_URL}/api/tokens/in`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
@@ -429,7 +437,6 @@
             button.disabled = true;
 
             try {
-                // NOTE: Assuming /api/tokens/out/:tokenId is the correct route for checkout
                 const response = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
                     method: 'POST',
                     headers: getAuthHeaders()
