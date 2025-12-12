@@ -11,13 +11,50 @@
         .animate-fadeIn { animation: fadeIn 1s ease-in-out; }
         .fixed-header { position: sticky; top: 0; z-index: 10; }
         .login-popup { animation: fadeIn 0.3s ease-out; }
+        /* Add Modal/Popup styling */
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
 
     <div id="app-root">
-        </div>
+    </div>
+    
+    <div id="edit-modal" class="modal fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md">
+            <h2 class="text-xl font-bold text-blue-700 mb-4" id="edit-modal-title">Edit User</h2>
+            <form id="edit-user-form" class="space-y-4">
+                <input type="hidden" id="edit-user-id" name="userId">
+                
+                <div>
+                    <label for="edit-full-name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                    <input type="text" id="edit-full-name" name="fullName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div id="edit-manager-container" class="hidden">
+                    <label for="edit-manager-id" class="block text-sm font-medium text-gray-700">Re-assign Manager</label>
+                    <select id="edit-manager-id" name="managerId" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </select>
+                </div>
 
+                 <div>
+                    <label for="edit-point-id" class="block text-sm font-medium text-gray-700">Re-assign Location</label>
+                    <select id="edit-point-id" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </select>
+                </div>
+                
+                <p class="text-sm text-red-500">Note: Use this form to re-assign. You cannot change password here.</p>
+                <p id="edit-message" class="text-sm text-center"></p>
+
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeEditModal()" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
     <script>
         // --- 1. CONFIGURATION ---
         const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app'; 
@@ -28,8 +65,9 @@
         let user = JSON.parse(localStorage.getItem('user'));
         let currentTokens = []; 
         let currentLoginRole = null; 
-        let currentPoints = []; // Holds available points
-        let currentManagers = []; // Holds available managers
+        let currentPoints = []; 
+        let currentManagers = []; 
+        let allUsers = []; // New state to hold all non-owner users
 
         // --- 3. UTILITY FUNCTIONS ---
 
@@ -47,6 +85,7 @@
             currentLoginRole = null;
             currentPoints = [];
             currentManagers = [];
+            allUsers = [];
             renderApp();
         }
 
@@ -79,30 +118,30 @@
             } catch (error) {
                 console.error("Points fetch error:", error);
                 if (user && user.role === 'owner') {
-                    alert('Error fetching locations. Check console.');
+                    console.error('Error fetching locations:', error);
                 }
                 return false;
             }
         }
         
-        async function fetchManagers() {
+        async function fetchAllUsersAndManagers() {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/users/admin/users`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch users');
                 const users = await response.json();
                 
-                // Filter users to only include managers
+                allUsers = users;
                 currentManagers = users.filter(u => u.role === 'manager'); 
                 return true;
             } catch (error) {
-                console.error("Managers fetch error:", error);
-                if (user && user.role === 'owner') {
-                    console.error('Error fetching managers:', error);
-                }
+                console.error("User/Managers fetch error:", error);
                 return false;
             }
         }
 
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+        }
 
         // --- 4. RENDER COMPONENTS ---
 
@@ -117,6 +156,7 @@
         }
 
         function renderRoleSelection() {
+            // ... (role selection HTML)
             const roleSelectionHtml = `
                 <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
                     <h2 class="text-3xl font-bold text-green-700 mb-8">SELECT LOGIN ROLE</h2>
@@ -186,13 +226,13 @@
                      fetchedPoints = await fetchPoints();
                  }
                  
-                 let fetchedManagers = true;
-                 if (role === 'driver' && currentManagers.length === 0) {
-                     fetchedManagers = await fetchManagers();
+                 let fetchedUsers = true;
+                 if (currentManagers.length === 0) {
+                     fetchedUsers = await fetchAllUsersAndManagers();
                  }
 
-                 if (!fetchedPoints || (role === 'driver' && !fetchedManagers)) {
-                    alert('Could not load required data (Locations/Managers). Please check backend.');
+                 if (!fetchedPoints || (role === 'driver' && !fetchedUsers)) {
+                    alert('Could not load required data (Locations/Managers). Please check console.');
                     return renderDashboard(); 
                  }
             }
@@ -265,6 +305,7 @@
         }
         
         function renderPointCreation() {
+            // ... (Same as before)
             appRoot.innerHTML = `<div class="min-h-screen bg-gray-50 pb-20">
                     <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
                         <h1 class="text-lg font-semibold">Create New Location Point</h1>
@@ -301,9 +342,9 @@
                 return '<p class="text-center text-gray-500 p-4">No Managers or Drivers found.</p>';
             }
 
-            // Map users to table rows
             const rows = users.map(u => {
-                const managerName = u.managerId && u.managerId.fullName ? u.managerId.fullName : 'N/A';
+                const isUnassigned = u.role === 'driver' && u.managerId === null;
+                const managerName = u.managerId && u.managerId.fullName ? u.managerId.fullName : (isUnassigned ? '<span class="text-red-500 font-bold">UNASSIGNED (Fix Now)</span>' : '—');
                 const pointName = u.pointId && u.pointId.name ? u.pointId.name : 'Unassigned';
 
                 return `
@@ -312,10 +353,10 @@
                         <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500 font-mono">${u.username}</td>
                         <td class="px-3 py-2 whitespace-nowrap text-sm text-${u.role === 'manager' ? 'yellow' : 'green'}-700 font-semibold">${u.role.toUpperCase()}</td>
                         <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${pointName}</td>
-                        <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${u.role === 'driver' ? managerName : '—'}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${managerName}</td>
                         <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
-                            <button onclick="alert('Editing user: ${u.username}')" class="text-indigo-600 hover:text-indigo-900 mr-2 text-xs">Edit</button>
-                            <button onclick="handleUserDelete('${u._id}')" class="text-red-600 hover:text-red-900 text-xs">Delete</button>
+                            <button onclick="handleUserEdit('${u._id}')" class="text-indigo-600 hover:text-indigo-900 mr-2 text-xs">Edit</button>
+                            ${u.role !== 'owner' ? `<button onclick="handleUserDelete('${u._id}')" class="text-red-600 hover:text-red-900 text-xs">Delete</button>` : '—'}
                         </td>
                     </tr>
                 `;
@@ -364,18 +405,16 @@
             const container = document.getElementById('user-list-container');
             
             try {
-                // This route returns users with managerId and pointId populated (Names, not just IDs)
-                const response = await fetch(`${API_BASE_URL}/api/users/admin/users`, { headers: getAuthHeaders() });
-                
-                if (!response.ok) {
+                // Fetch all users and managers again to ensure fresh data for the list
+                const fetched = await fetchAllUsersAndManagers();
+
+                if (!fetched) {
                     throw new Error('Failed to fetch user list.');
                 }
                 
-                const users = await response.json();
-                listMessage.remove(); // Remove fetching message
+                listMessage.remove(); 
                 
-                // Render the table
-                const tableHtml = renderUserTable(users);
+                const tableHtml = renderUserTable(allUsers);
                 container.insertAdjacentHTML('beforeend', tableHtml);
                 
             } catch (error) {
@@ -474,7 +513,7 @@
             
             if (user.role === 'owner') {
                 fetchPoints();
-                fetchManagers();
+                fetchAllUsersAndManagers();
             }
         }
 
@@ -502,10 +541,11 @@
                 `;
             }).join('');
         }
-
+        
         // --- 5. ASYNC HANDLERS (API CALLS) ---
 
         async function handleLoginSubmit(event) {
+            // ... (Same as before)
             event.preventDefault();
             const username = event.target.username.value;
             const password = event.target.password.value;
@@ -543,6 +583,7 @@
         }
         
         async function handlePointCreateSubmit(event) {
+             // ... (Same as before)
             event.preventDefault();
             const form = event.target;
             const messageElement = document.getElementById('point-create-message');
@@ -579,6 +620,7 @@
         }
 
         async function handleCreateUserSubmit(event) {
+            // ... (Same as before)
             event.preventDefault();
             const form = event.target;
             const role = form.dataset.role;
@@ -613,9 +655,7 @@
                     messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
                     messageElement.textContent = `${role.toUpperCase()} ${data.username} created successfully! ID: ${data.id}`;
                     form.reset();
-                    if (role === 'manager') {
-                        fetchManagers(); 
-                    }
+                    fetchAllUsersAndManagers(); 
                 } else {
                     const errorData = await response.json();
                     messageElement.className = 'text-red-500 text-sm mt-3 text-center';
@@ -629,6 +669,7 @@
         }
         
         async function handleUserDelete(userId) {
+            // ... (Same as before)
             if (!confirm('Are you sure you want to permanently delete this user? This cannot be undone.')) {
                 return;
             }
@@ -641,8 +682,7 @@
 
                 if (response.ok) {
                     alert('User deleted successfully.');
-                    renderUserList(); // Refresh the list
-                    fetchManagers(); // Refresh manager list in case a manager was deleted
+                    renderUserList(); 
                 } else {
                     const errorData = await response.json();
                     alert(errorData.message || 'Failed to delete user.');
@@ -652,12 +692,106 @@
                 console.error('Delete User error:', error);
             }
         }
+        
+        async function handleUserEdit(userId) {
+            const userToEdit = allUsers.find(u => u._id === userId);
+            if (!userToEdit) {
+                alert('User not found in list.');
+                return;
+            }
 
+            // Populate Modal Fields
+            document.getElementById('edit-modal-title').textContent = `Edit User: ${userToEdit.username} (${userToEdit.role.toUpperCase()})`;
+            document.getElementById('edit-user-id').value = userId;
+            document.getElementById('edit-full-name').value = userToEdit.fullName;
+            document.getElementById('edit-message').textContent = '';
+
+            // Populate Point Options
+            const pointSelect = document.getElementById('edit-point-id');
+            pointSelect.innerHTML = currentPoints.map(p => 
+                `<option value="${p._id}" ${p._id === userToEdit.pointId ? 'selected' : ''}>${p.name} (ID: ${p._id.slice(-4)})</option>`
+            ).join('');
+
+            // Handle Manager Re-assignment for Drivers
+            const managerContainer = document.getElementById('edit-manager-container');
+            const managerSelect = document.getElementById('edit-manager-id');
+            
+            if (userToEdit.role === 'driver') {
+                managerContainer.classList.remove('hidden');
+                managerSelect.innerHTML = `<option value="">-- Select Manager --</option>` + currentManagers.map(m => 
+                    `<option value="${m._id}" ${m._id === userToEdit.managerId ? 'selected' : ''}>${m.fullName} (${m.username})</option>`
+                ).join('');
+            } else {
+                managerContainer.classList.add('hidden');
+                managerSelect.removeAttribute('required'); // Manager ke liye required nahi hai
+            }
+            
+            // Show the modal
+            document.getElementById('edit-modal').classList.remove('hidden');
+            
+            // Attach form handler
+            document.getElementById('edit-user-form').onsubmit = handleEditUserSubmit;
+        }
+        
+        async function handleEditUserSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const userId = form.userId.value;
+            const messageElement = document.getElementById('edit-message');
+            messageElement.className = 'text-gray-500 text-sm mt-3 text-center';
+            messageElement.textContent = 'Saving changes...';
+            
+            const userRole = allUsers.find(u => u._id === userId).role;
+
+            const updates = {
+                fullName: form.fullName.value,
+                pointId: form.pointId.value,
+            };
+            
+            if (userRole === 'driver') {
+                updates.managerId = form.managerId.value;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/admin/update-user/${userId}`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(updates)
+                });
+
+                if (response.ok) {
+                    messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
+                    messageElement.textContent = `User updated successfully!`;
+                    await fetchAllUsersAndManagers(); // Refresh data
+                    renderUserList(); // Refresh the visible list
+                    setTimeout(closeEditModal, 1500);
+                } else {
+                    const errorData = await response.json();
+                    messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                    messageElement.textContent = errorData.message || 'Failed to update user.';
+                }
+            } catch (error) {
+                messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                messageElement.textContent = 'Network error: Could not connect to server.';
+                console.error('Update User error:', error);
+            }
+        }
+        
         async function handleCarInSubmit(event) {
             event.preventDefault();
             const carNumber = event.target.carNumber.value.toUpperCase();
             const customerName = event.target.customerName.value || 'N/A';
             const inMessage = document.getElementById('in-message');
+            
+            // 🛑 FIX 1: pointId is required and must come from the logged-in user state
+            const assignedPointId = user.pointId; 
+            
+            if (!assignedPointId) {
+                inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+                inMessage.textContent = 'Error: User is not assigned to a Location Point.';
+                return; 
+            }
+
             inMessage.className = 'text-gray-500 text-sm mt-2 text-center';
             inMessage.textContent = 'Generating Token...';
 
@@ -665,7 +799,11 @@
                 const response = await fetch(`${API_BASE_URL}/api/tokens/in`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ carNumber, customerName })
+                    body: JSON.stringify({ 
+                        carNumber, 
+                        customerName,
+                        pointId: assignedPointId // 🛑 Fix: pointId is now included
+                    })
                 });
 
                 if (response.ok) {
@@ -686,7 +824,9 @@
             }
         }
 
+
         async function handleCarOutSubmit(event) {
+            // ... (Same as before)
             const tokenId = event.currentTarget.dataset.tokenId;
             if (!confirm('Are you sure you want to mark this car OUT?')) return;
 
@@ -716,6 +856,7 @@
                 console.error('Car OUT error:', error);
             }
         }
+
 
         // --- 6. INITIAL RENDERER ---
 
