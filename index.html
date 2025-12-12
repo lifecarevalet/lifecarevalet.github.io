@@ -107,6 +107,7 @@
         }
 
         async function fetchTokens() {
+            if (!user) return; 
             try {
                 const response = await fetch(`${API_BASE_URL}/api/tokens/data`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch tokens');
@@ -116,16 +117,18 @@
                     document.getElementById('token-list-message').textContent = 'Live data fetched.';
                     document.getElementById('active-tokens-list').innerHTML = renderTokenList();
                 } else {
+                    // Fallback to ensure UI updates if called outside dashboard context
                     renderDashboard(); 
                 }
                  
             } catch (error) {
                 console.error("Token fetch error:", error);
-                // No need to call handleLogout here, just log the error
+                // Allow process to continue even on token fetch failure
             }
         }
         
         async function fetchPoints() {
+            if (!user) return false; 
             try {
                 const response = await fetch(`${API_BASE_URL}/api/points/admin/all`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch points');
@@ -139,6 +142,7 @@
         }
         
         async function fetchAllUsersAndManagers() {
+            if (!user) return false; 
             try {
                 const response = await fetch(`${API_BASE_URL}/api/users/admin/users`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch users');
@@ -153,7 +157,7 @@
             }
         }
         
-        // --- NEW: Fetch Drivers assigned to the logged-in Manager ---
+        // --- NEW: Fetch Drivers assigned to the logged-in Manager/Driver ---
         async function fetchAssignedDrivers() {
             if (!user || (!user.id && !user.fullName) || (user.role !== 'driver' && user.role !== 'manager')) {
                 console.warn("User state invalid or role not driver/manager. Skipping driver fetch.");
@@ -169,7 +173,7 @@
 
             if (user.role === 'manager') {
                 try {
-                    // Fetch assigned drivers from backend (API required: /api/users/manager/drivers)
+                    // Fetch assigned drivers from backend (Assuming API: /api/users/manager/drivers exists)
                     const response = await fetch(`${API_BASE_URL}/api/users/manager/drivers`, { headers: getAuthHeaders() });
                     if (!response.ok) throw new Error('Failed to fetch assigned drivers');
                     const drivers = await response.json();
@@ -177,13 +181,12 @@
                     // Manager ka khud ka naam bhi list mein add karein
                     const managerAsDriver = { _id: user.id, fullName: user.fullName };
                     
-                    // Filter out the manager from the driver list if they are in the list by mistake
                     currentAssignedDrivers = [managerAsDriver, ...drivers.filter(d => d._id !== user.id)]; 
                     
                     return true;
                 } catch (error) {
                     console.error("Assigned Drivers fetch error:", error);
-                    // On failure, only show manager's name as an option to prevent blank screen
+                    // On failure, only show manager's name as an option (Fallback)
                     currentAssignedDrivers = [{ _id: user.id, fullName: user.fullName }];
                     return false;
                 }
@@ -392,7 +395,6 @@
         }
         
         function renderPointCreation() {
-            // ... (Same as before)
             appRoot.innerHTML = `<div class="min-h-screen bg-gray-50 pb-20">
                     <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
                         <h1 class="text-lg font-semibold">Create New Location Point</h1>
@@ -663,7 +665,11 @@
             document.getElementById('logout-button').addEventListener('click', handleLogout);
 
             if (user.role === 'driver' || user.role === 'manager') {
-                document.getElementById('car-in-form').addEventListener('submit', handleCarInSubmit);
+                // Attach event listener to the form
+                const carInForm = document.getElementById('car-in-form');
+                if (carInForm) {
+                    carInForm.addEventListener('submit', handleCarInSubmit);
+                }
             }
 
             document.querySelectorAll('.car-out-btn').forEach(button => {
@@ -732,14 +738,30 @@
 
                     user = { ...data };
                     localStorage.setItem('user', JSON.stringify(user));
-                    errorMessage.textContent = 'Login Successful!';
+                    errorMessage.textContent = 'Login Successful! Loading Dashboard...';
                     
+                    // --- CRITICAL ASYNC CALLS (Manager/Driver only) ---
                     if (user.role === 'manager' || user.role === 'driver') {
-                        // Crucial step before rendering the dashboard
-                        await fetchAssignedDrivers();
+                        try {
+                            // Try to fetch drivers list for the token form
+                            await fetchAssignedDrivers();
+                        } catch (e) {
+                            // Agar drivers list fetch fail ho jaye, tab bhi aage badhna hai
+                            console.error("Warning: Failed to fetch assigned drivers during login.", e);
+                        }
                     }
                     
-                    await fetchTokens(); 
+                    try {
+                         // Try to fetch current active tokens
+                         await fetchTokens(); 
+                    } catch (e) {
+                        // Agar token fetch fail ho jaye, tab bhi aage badhna hai
+                        console.error("Warning: Failed to fetch tokens during login.", e);
+                    }
+                    
+                    // 🛑 FINAL STEP: Render the Dashboard
+                    renderDashboard(); 
+                    
                 } else {
                     const errorData = await response.json();
                     errorMessage.textContent = errorData.message || 'Login Failed. Invalid Credentials.';
@@ -804,7 +826,7 @@
                 // If Manager is creating a driver, pointId is auto-set
                 pointId: isManagerScope ? user.pointId : form.pointId.value, 
                 // If Manager is creating a driver, managerId is auto-set
-                managerId: role === 'driver' ? (isManagerScope ? user.id : form.managerId.value) : null 
+                managerId: role === 'driver' ? (isManagerScope ? user.id : (form.managerId ? form.managerId.value : null)) : null 
             };
             
             if (role === 'driver' && !formData.managerId) {
@@ -1052,7 +1074,7 @@
         }
 
 
-        // --- 6. INITIAL RENDERER ---
+        // --- 6. INITIAL RENDERER (Safely handles async dependencies) ---
 
         function renderApp() {
             if (isSplash) {
