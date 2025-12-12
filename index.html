@@ -29,7 +29,7 @@
         let currentTokens = []; 
         let currentLoginRole = null; 
         let currentPoints = []; // Holds available points
-        let currentManagers = []; // Holds available managers (NEW)
+        let currentManagers = []; // Holds available managers
 
         // --- 3. UTILITY FUNCTIONS ---
 
@@ -87,7 +87,6 @@
         
         async function fetchManagers() {
             try {
-                // Fetch all non-owner users and filter for managers
                 const response = await fetch(`${API_BASE_URL}/api/users/admin/users`, { headers: getAuthHeaders() });
                 if (!response.ok) throw new Error('Failed to fetch users');
                 const users = await response.json();
@@ -108,7 +107,6 @@
         // --- 4. RENDER COMPONENTS ---
 
         function renderSplashScreen() {
-            // ... (Same as before)
             appRoot.innerHTML = `<div class="flex flex-col items-center justify-center min-h-screen bg-green-700 text-white animate-fadeIn">
                     <h1 class="text-5xl font-extrabold tracking-widest">LIFE CARE</h1>
                     <p class="text-xl mt-2 font-light">VALET PARKING</p>
@@ -119,7 +117,6 @@
         }
 
         function renderRoleSelection() {
-            // ... (Same as before)
             const roleSelectionHtml = `
                 <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
                     <h2 class="text-3xl font-bold text-green-700 mb-8">SELECT LOGIN ROLE</h2>
@@ -183,7 +180,6 @@
         }
 
         async function renderUserManagement(role) {
-            // Check if points and managers are loaded for the dropdowns
             if (user.role === 'owner') {
                  let fetchedPoints = true;
                  if (currentPoints.length === 0) {
@@ -269,7 +265,6 @@
         }
         
         function renderPointCreation() {
-            // ... (Same as before)
             appRoot.innerHTML = `<div class="min-h-screen bg-gray-50 pb-20">
                     <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
                         <h1 class="text-lg font-semibold">Create New Location Point</h1>
@@ -301,6 +296,96 @@
             document.getElementById('create-point-form').addEventListener('submit', handlePointCreateSubmit);
         }
 
+        function renderUserTable(users) {
+            if (users.length === 0) {
+                return '<p class="text-center text-gray-500 p-4">No Managers or Drivers found.</p>';
+            }
+
+            // Map users to table rows
+            const rows = users.map(u => {
+                const managerName = u.managerId && u.managerId.fullName ? u.managerId.fullName : 'N/A';
+                const pointName = u.pointId && u.pointId.name ? u.pointId.name : 'Unassigned';
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${u.fullName}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500 font-mono">${u.username}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-${u.role === 'manager' ? 'yellow' : 'green'}-700 font-semibold">${u.role.toUpperCase()}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${pointName}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${u.role === 'driver' ? managerName : '—'}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="alert('Editing user: ${u.username}')" class="text-indigo-600 hover:text-indigo-900 mr-2 text-xs">Edit</button>
+                            <button onclick="handleUserDelete('${u._id}')" class="text-red-600 hover:text-red-900 text-xs">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-300">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Name</th>
+                                <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Username</th>
+                                <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Role</th>
+                                <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Location</th>
+                                <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Manager</th>
+                                <th class="relative py-3.5 pl-3 pr-4 sm:pr-6"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+
+        async function renderUserList() {
+            appRoot.innerHTML = `
+                <div class="min-h-screen bg-gray-50 pb-20">
+                    <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
+                        <h1 class="text-lg font-semibold">User Management (Managers & Drivers)</h1>
+                        <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Back to Dashboard</button>
+                    </header>
+                    
+                    <main class="pt-20 p-4">
+                        <div id="user-list-container" class="bg-white p-6 rounded-lg shadow-xl">
+                            <h2 class="text-2xl font-bold text-gray-700 mb-6">User List</h2>
+                            <p id="list-message" class="text-gray-500 text-center mb-4">Fetching users...</p>
+                        </div>
+                    </main>
+                </div>
+            `;
+
+            const listMessage = document.getElementById('list-message');
+            const container = document.getElementById('user-list-container');
+            
+            try {
+                // This route returns users with managerId and pointId populated (Names, not just IDs)
+                const response = await fetch(`${API_BASE_URL}/api/users/admin/users`, { headers: getAuthHeaders() });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch user list.');
+                }
+                
+                const users = await response.json();
+                listMessage.remove(); // Remove fetching message
+                
+                // Render the table
+                const tableHtml = renderUserTable(users);
+                container.insertAdjacentHTML('beforeend', tableHtml);
+                
+            } catch (error) {
+                listMessage.textContent = 'Error: Could not load user data. Check backend logs.';
+                listMessage.classList.add('text-red-500');
+                console.error("User List Fetch Error:", error);
+            }
+        }
+
+
         function renderDashboard() {
             if (!user) return renderRoleSelection(); 
 
@@ -331,7 +416,7 @@
                                         + Add Location
                                     </button>
                                 </div>
-                                <button onclick="alert('Functionality coming soon!')" class="w-full mt-4 bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 font-semibold">
+                                <button onclick="renderUserList()" class="w-full mt-4 bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 font-semibold">
                                     View/Manage Users
                                 </button>
                             </div>
@@ -387,7 +472,6 @@
                 fetchTokens();
             }
             
-            // Fetch points and managers for owner when dashboard loads
             if (user.role === 'owner') {
                 fetchPoints();
                 fetchManagers();
@@ -395,7 +479,6 @@
         }
 
         function renderTokenList() {
-            // ... (Same as before)
             const activeTokens = currentTokens.filter(t => !t.outTime);
 
             if (activeTokens.length === 0) {
@@ -423,7 +506,6 @@
         // --- 5. ASYNC HANDLERS (API CALLS) ---
 
         async function handleLoginSubmit(event) {
-            // ... (Same as before)
             event.preventDefault();
             const username = event.target.username.value;
             const password = event.target.password.value;
@@ -461,7 +543,6 @@
         }
         
         async function handlePointCreateSubmit(event) {
-            // ... (Same as before)
             event.preventDefault();
             const form = event.target;
             const messageElement = document.getElementById('point-create-message');
@@ -484,7 +565,7 @@
                     messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
                     messageElement.textContent = `Location '${data.point.name}' created successfully! ID: ${data.point._id}`;
                     form.reset();
-                    fetchPoints(); // Refetch points after successful creation
+                    fetchPoints(); 
                 } else {
                     const errorData = await response.json();
                     messageElement.className = 'text-red-500 text-sm mt-3 text-center';
@@ -510,12 +591,10 @@
                 password: form.password.value,
                 fullName: form.fullName.value,
                 role: role,
-                pointId: form.pointId.value, // ID from the dropdown
-                // managerId dropdown se aa raha hai. Agar Driver nahi hai, toh null jaayega.
+                pointId: form.pointId.value, 
                 managerId: role === 'driver' ? form.managerId.value : null 
             };
             
-            // Validation: Ensure manager is selected for driver
             if (role === 'driver' && !formData.managerId) {
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
                 messageElement.textContent = 'Error: Driver must be assigned to a Manager.';
@@ -535,7 +614,7 @@
                     messageElement.textContent = `${role.toUpperCase()} ${data.username} created successfully! ID: ${data.id}`;
                     form.reset();
                     if (role === 'manager') {
-                        fetchManagers(); // Agar naya manager bana hai, toh list refresh karein
+                        fetchManagers(); 
                     }
                 } else {
                     const errorData = await response.json();
@@ -549,12 +628,93 @@
             }
         }
         
+        async function handleUserDelete(userId) {
+            if (!confirm('Are you sure you want to permanently delete this user? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    alert('User deleted successfully.');
+                    renderUserList(); // Refresh the list
+                    fetchManagers(); // Refresh manager list in case a manager was deleted
+                } else {
+                    const errorData = await response.json();
+                    alert(errorData.message || 'Failed to delete user.');
+                }
+            } catch (error) {
+                alert('Network error: Could not connect to server to delete user.');
+                console.error('Delete User error:', error);
+            }
+        }
+
         async function handleCarInSubmit(event) {
-            // ... (Same as before)
+            event.preventDefault();
+            const carNumber = event.target.carNumber.value.toUpperCase();
+            const customerName = event.target.customerName.value || 'N/A';
+            const inMessage = document.getElementById('in-message');
+            inMessage.className = 'text-gray-500 text-sm mt-2 text-center';
+            inMessage.textContent = 'Generating Token...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tokens/in`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ carNumber, customerName })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    inMessage.className = 'text-green-600 text-sm mt-2 text-center font-bold';
+                    inMessage.textContent = `Token ${data.token.tokenNumber} generated for ${carNumber}!`;
+                    fetchTokens(); 
+                    event.target.reset(); 
+                } else {
+                    const errorData = await response.json();
+                    inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+                    inMessage.textContent = errorData.message || 'Failed to generate token.';
+                }
+            } catch (error) {
+                inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+                inMessage.textContent = 'Network error: Could not connect to server.';
+                console.error('Car IN error:', error);
+            }
         }
 
         async function handleCarOutSubmit(event) {
-            // ... (Same as before)
+            const tokenId = event.currentTarget.dataset.tokenId;
+            if (!confirm('Are you sure you want to mark this car OUT?')) return;
+
+            const button = event.currentTarget;
+            button.textContent = 'Processing...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    alert('Car marked OUT successfully!');
+                    fetchTokens(); 
+                } else {
+                    const errorData = await response.json();
+                    alert(errorData.message || 'Failed to mark car OUT.');
+                    button.textContent = 'Car OUT';
+                    button.disabled = false;
+                }
+            } catch (error) {
+                alert('Network error: Could not connect to server.');
+                button.textContent = 'Car OUT';
+                button.disabled = false;
+                console.error('Car OUT error:', error);
+            }
         }
 
         // --- 6. INITIAL RENDERER ---
