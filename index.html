@@ -610,6 +610,14 @@
                 return renderRoleSelection();
             }
 
+            // ⚠️ TEMPORARY TEST BLOCK START
+            // Agar iske baad bhi screen stuck hoti hai, toh problem renderDashboard() tak aane se pehle hai.
+            appRoot.innerHTML = '<div class="min-h-screen flex items-center justify-center text-2xl font-bold">DASHBOARD TEST SUCCESS</div>';
+            return; 
+            // ⚠️ TEMPORARY TEST BLOCK END
+            
+            // --- ORIGINAL CODE STARTS HERE ---
+            
             let dashboardHtml = '';
             
             if (user.role === 'owner') {
