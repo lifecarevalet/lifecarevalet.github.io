@@ -113,13 +113,11 @@
                 if (!response.ok) throw new Error('Failed to fetch tokens');
                 currentTokens = await response.json();
                 
+                // If dashboard is visible, update the list
                 if (document.getElementById('token-list-message')) {
                     document.getElementById('token-list-message').textContent = 'Live data fetched.';
                     document.getElementById('active-tokens-list').innerHTML = renderTokenList();
-                } else {
-                    // Fallback to ensure UI updates if called outside dashboard context
-                    renderDashboard(); 
-                }
+                } 
                  
             } catch (error) {
                 console.error("Token fetch error:", error);
@@ -605,13 +603,11 @@
 
 
         function renderDashboard() {
-            if (!user) return renderRoleSelection(); 
-
-            // 🛑 SAFETY CHECK: Agar user ka data corrupt hai, toh logout kar dein
-            if (!user.id || !user.role) {
-                console.error("User data is incomplete. Logging out.");
+            // 🛑 Final check before proceeding
+            if (!user || !user.id || !user.role) {
+                console.error("Critical Error: User data lost after login. Returning to role selection.");
                 handleLogout();
-                return;
+                return renderRoleSelection();
             }
 
             let dashboardHtml = '';
@@ -676,14 +672,13 @@
                 button.addEventListener('click', handleCarOutSubmit);
             });
 
-            if (currentTokens.length === 0) {
-                fetchTokens();
-            }
-            
+            // Data fetch calls already run in the background after login, 
+            // but we ensure they are running if the user manually navigates here.
             if (user.role === 'owner') {
                 fetchPoints();
                 fetchAllUsersAndManagers();
             }
+            fetchTokens();
         }
 
         function renderTokenList() {
@@ -740,27 +735,26 @@
                     localStorage.setItem('user', JSON.stringify(user));
                     errorMessage.textContent = 'Login Successful! Loading Dashboard...';
                     
-                    // --- CRITICAL ASYNC CALLS (Manager/Driver only) ---
-                    if (user.role === 'manager' || user.role === 'driver') {
-                        try {
-                            // Try to fetch drivers list for the token form
-                            await fetchAssignedDrivers();
-                        } catch (e) {
-                            // Agar drivers list fetch fail ho jaye, tab bhi aage badhna hai
-                            console.error("Warning: Failed to fetch assigned drivers during login.", e);
-                        }
-                    }
-                    
-                    try {
-                         // Try to fetch current active tokens
-                         await fetchTokens(); 
-                    } catch (e) {
-                        // Agar token fetch fail ho jaye, tab bhi aage badhna hai
-                        console.error("Warning: Failed to fetch tokens during login.", e);
-                    }
-                    
-                    // 🛑 FINAL STEP: Render the Dashboard
+                    // 🛑 CRITICAL CHANGE: Immediately render the dashboard.
                     renderDashboard(); 
+                    
+                    // --- BACKGROUND DATA REFRESH ---
+                    // Fetch data without 'await' so UI thread is not blocked
+                    
+                    if (user.role === 'manager' || user.role === 'driver') {
+                        fetchAssignedDrivers().catch(e => {
+                            console.error("BG Fetch Warning: Failed to fetch assigned drivers.", e);
+                        });
+                    }
+                    
+                    fetchTokens().catch(e => {
+                        console.error("BG Fetch Warning: Failed to fetch tokens.", e);
+                    });
+                    
+                    if (user.role === 'owner') {
+                         fetchPoints().catch(e => console.error("BG Fetch Warning: Failed to fetch points.", e));
+                         fetchAllUsersAndManagers().catch(e => console.error("BG Fetch Warning: Failed to fetch users.", e));
+                    }
                     
                 } else {
                     const errorData = await response.json();
@@ -1027,6 +1021,7 @@
                         driverName: assignedDriverName
                     });
 
+                    // Fetch tokens in background to update the list
                     fetchTokens(); 
                     event.target.reset(); 
                 } else {
@@ -1081,13 +1076,11 @@
                 renderSplashScreen();
             } else if (user) {
                 if (user.role === 'manager' || user.role === 'driver') {
-                    // Critical: Fetch drivers list before rendering the dashboard
-                    fetchAssignedDrivers().then(() => {
-                        renderDashboard();
-                    }).catch(e => {
+                    // Try to fetch drivers list once before rendering (non-blocking)
+                    fetchAssignedDrivers().catch(e => {
                         console.error("Critical: Failed to fetch assigned drivers/self. Rendering fallback.", e);
-                        renderDashboard(); 
                     });
+                    renderDashboard(); // Render immediately
                 } else {
                     renderDashboard();
                 }
