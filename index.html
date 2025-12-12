@@ -504,7 +504,6 @@
         document.getElementById('create-user-form').addEventListener('submit', handleCreateUserSubmit);
     }
 
-    // renderPointTable (unchanged)
     function renderPointTable(points) {
         if (!points || points.length === 0) {
             return '<p class="text-center text-gray-500 p-4">No Locations (Points) found. Create one above.</p>';
@@ -604,7 +603,6 @@
         }
     }
     
-    // ... renderUserTable (unchanged)
     function renderUserTable(users) {
         if (!users || users.length === 0) {
             return '<p class="text-center text-gray-500 p-4">No Managers or Drivers found.</p>';
@@ -775,6 +773,52 @@
 
     // --- API HANDLERS ---
     
+    // FIX for login not working/refreshing (Request 10)
+    async function handleLoginSubmit(event) {
+        event.preventDefault(); // Crucial to stop form refresh
+        const username = event.target.username.value;
+        const password = event.target.password.value;
+        const errorMessage = document.getElementById('error-message');
+        errorMessage.textContent = 'Logging in...';
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/users/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                
+                // If role mismatch, inform user (but allow login)
+                if (data.role && currentLoginRole && data.role !== currentLoginRole) {
+                     // Keep this as a message on login screen, then proceed.
+                     errorMessage.textContent = `Logged in as ${data.role.toUpperCase()} — switching to that dashboard.`; 
+                } else {
+                    errorMessage.textContent = 'Login Successful!';
+                }
+                
+                user = { ...data };
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                // Fetch necessary data before rendering dashboard
+                await fetchTokens();
+                if (!currentPoints.length) await fetchPoints();
+                await fetchAllUsersAndManagers();
+
+                renderDashboard();
+            } else {
+                const err = await res.json();
+                errorMessage.textContent = err.message || 'Login failed. Check credentials.';
+            }
+        } catch (err) {
+            console.error('login error', err);
+            errorMessage.textContent = 'Could not connect to server. Check URL or network.';
+        }
+    }
+
+
     // MODIFIED: handlePointCreateSubmit (Request 2)
     async function handlePointCreateSubmit(event) {
         event.preventDefault();
@@ -906,53 +950,81 @@
         }
     }
 
-    // MODIFIED: handleUserDelete (Request 8)
-    async function handleUserDelete(userId) {
-        showCustomConfirm('Are you sure you want to permanently delete this user? This cannot be undone.', async () => {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
-                });
-                if (res.ok) {
-                    showCustomAlert('User deleted successfully.', 'Success', 'success');
-                    await fetchAllUsersAndManagers();
-                    renderUserList();
-                } else {
-                    const err = await res.json();
-                    showCustomAlert(err.message || 'Failed to delete user.', 'Deletion Failed', 'error');
-                }
-            } catch (err) {
-                console.error('Delete User error', err);
-                showCustomAlert('Network error: Could not connect to server to delete user.', 'Deletion Failed', 'error');
-            }
-        }, 'Delete User Confirmation', 'Delete Permanently');
+    async function handleUserEdit(userId) {
+        const userToEdit = allUsers.find(u => u._id === userId);
+        if (!userToEdit) {
+            showCustomAlert('User not found in list.', 'Error', 'error');
+            return;
+        }
+
+        // Clean up modal from any previous Point Edit
+        cleanupEditModal();
+
+        document.getElementById('edit-modal-title').textContent = `Edit User: ${userToEdit.username} (${userToEdit.role})`;
+        document.getElementById('edit-user-id').value = userId;
+        document.getElementById('edit-full-name').value = userToEdit.fullName || '';
+
+        // Populate points
+        const pointSelect = document.getElementById('edit-point-id');
+        pointSelect.innerHTML = (currentPoints || []).map(p => `<option value="${p._id}" ${p._id === (userToEdit.pointId && userToEdit.pointId._id ? userToEdit.pointId._id : userToEdit.pointId) ? 'selected' : ''}>${p.name}</option>`).join('');
+
+        // Manager container
+        const managerContainer = document.getElementById('edit-manager-container');
+        const managerSelect = document.getElementById('edit-manager-id');
+
+        if (userToEdit.role === 'driver') {
+            managerContainer.classList.remove('hidden');
+            managerSelect.innerHTML = `<option value="">-- Select Manager --</option>` + (currentManagers || []).map(m => `<option value="${m._id}" ${((userToEdit.managerId && ((typeof userToEdit.managerId === 'object' && userToEdit.managerId._id === m._id) || userToEdit.managerId === m._id)) ? 'selected' : '')}>${m.fullName} (${m.username})</option>`).join('');
+        } else {
+            managerContainer.classList.add('hidden');
+        }
+
+        document.getElementById('edit-modal').classList.remove('hidden');
+        document.getElementById('edit-user-form').onsubmit = handleEditUserSubmit;
     }
 
-    // MODIFIED: handlePointDelete (Request 3, 8)
-    async function handlePointDelete(pointId, pointName) {
-        showCustomConfirm(`Are you sure you want to permanently delete the location: ${pointName}? This cannot be undone.`, async () => {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/points/admin/delete/${pointId}`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
-                });
-                if (res.ok) {
-                    showCustomAlert(`Location '${pointName}' deleted successfully.`, 'Success', 'success');
-                    await fetchPoints();
-                    renderPointList();
-                } else {
-                    const err = await res.json();
-                    showCustomAlert(err.message || 'Failed to delete location.', 'Deletion Failed', 'error');
-                }
-            } catch (err) {
-                console.error('Delete Point error', err);
-                // Request 3 Fix: Now uses custom alert/confirm
-                showCustomAlert('Network error: Could not connect to server to delete location.', 'Deletion Failed', 'error');
+    async function handleEditUserSubmit(event) {
+        event.preventDefault();
+        const form = event.target;
+        const userId = form.userId.value;
+        const messageElement = document.getElementById('edit-message');
+        messageElement.className = 'text-gray-500 text-sm mt-3 text-center';
+        messageElement.textContent = 'Saving changes...';
+
+        const userRole = (allUsers.find(u => u._id === userId) || {}).role;
+        const updates = {
+            fullName: form.fullName.value,
+            pointId: form.pointId.value
+        };
+        if (userRole === 'driver') updates.managerId = form.managerId.value;
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/users/admin/update-user/${userId}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(updates)
+            });
+            if (res.ok) {
+                messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
+                messageElement.textContent = 'User updated successfully!';
+                showCustomAlert('User updated successfully!', 'Success', 'success');
+                await fetchAllUsersAndManagers();
+                renderUserList();
+                setTimeout(closeEditModal, 1000);
+            } else {
+                const err = await res.json();
+                messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                showCustomAlert(err.message || 'Failed to update user.', 'Update Failed', 'error');
+                messageElement.textContent = err.message || 'Failed to update user.';
             }
-        }, 'Delete Location Confirmation', 'Delete Permanently');
+        } catch (err) {
+            console.error('Update User error', err);
+            messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            showCustomAlert('Network error: Could not connect to server.', 'Update Failed', 'error');
+            messageElement.textContent = 'Network error: Could not connect to server.';
+        }
     }
-    
+
     // MODIFIED: handlePointEdit (Request 2)
     async function handlePointEdit(pointId) {
         const pointToEdit = currentPoints.find(p => p._id === pointId);
@@ -975,8 +1047,8 @@
 
         // Split existing address into Complex and Full Address for edit (Request 2)
         const addressParts = (pointToEdit.address || ' | ').split('|').map(p => p.trim());
-        const complexValue = addressParts.length > 0 ? (addressParts[0].replace('Complex/Building:', '').trim() === 'N/A' ? '' : addressParts[0].replace('Complex/Building:', '').trim()) : '';
-        const fullAddressValue = addressParts.length > 1 ? (addressParts[1].replace('Address:', '').trim() === 'N/A' ? '' : addressParts[1].replace('Address:', '').trim()) : '';
+        const complexValue = addressParts.length > 0 ? (addressParts[0].replace('Complex/Building: ', '').trim() === 'N/A' ? '' : addressParts[0].replace('Complex/Building: ', '').trim()) : '';
+        const fullAddressValue = addressParts.length > 1 ? (addressParts[1].replace('Address: ', '').trim() === 'N/A' ? '' : addressParts[1].replace('Address: ', '').trim()) : '';
         
         // Add a temporary inputs for Address fields (Request 2)
         const complexInputHtml = `
@@ -1051,7 +1123,135 @@
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
-    
+
+    // MODIFIED: handleUserDelete (Request 8)
+    async function handleUserDelete(userId) {
+        showCustomConfirm('Are you sure you want to permanently delete this user? This cannot be undone.', async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showCustomAlert('User deleted successfully.', 'Success', 'success');
+                    await fetchAllUsersAndManagers();
+                    renderUserList();
+                } else {
+                    const err = await res.json();
+                    showCustomAlert(err.message || 'Failed to delete user.', 'Deletion Failed', 'error');
+                }
+            } catch (err) {
+                console.error('Delete User error', err);
+                showCustomAlert('Network error: Could not connect to server to delete user.', 'Deletion Failed', 'error');
+            }
+        }, 'Delete User Confirmation', 'Delete Permanently');
+    }
+
+    // MODIFIED: handlePointDelete (Request 3, 8)
+    async function handlePointDelete(pointId, pointName) {
+        showCustomConfirm(`Are you sure you want to permanently delete the location: ${pointName}? This cannot be undone.`, async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/points/admin/delete/${pointId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showCustomAlert(`Location '${pointName}' deleted successfully.`, 'Success', 'success');
+                    await fetchPoints();
+                    renderPointList();
+                } else {
+                    const err = await res.json();
+                    showCustomAlert(err.message || 'Failed to delete location.', 'Deletion Failed', 'error');
+                }
+            } catch (err) {
+                console.error('Delete Point error', err);
+                // Request 3 Fix: Now uses custom alert/confirm
+                showCustomAlert('Network error: Could not connect to server to delete location.', 'Deletion Failed', 'error');
+            }
+        }, 'Delete Location Confirmation', 'Delete Permanently');
+    }
+
+    async function handleCarInSubmit(event) {
+        event.preventDefault();
+        const carNumber = event.target.carNumber.value.trim().toUpperCase();
+        const customerName = event.target.customerName.value.trim() || 'N/A';
+        const inMessage = document.getElementById('in-message');
+
+        if (!carNumber) {
+            inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+            inMessage.textContent = 'Please enter car number.';
+            return;
+        }
+
+        // Determine pointId
+        const assignedPointId = user.pointId && (typeof user.pointId === 'object') ? user.pointId._id : (user.pointId || null);
+        if (!assignedPointId) {
+            inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+            inMessage.textContent = 'Error: You are not assigned to a Location Point.';
+            return;
+        }
+
+        // If manager, get selected driver id (Request 7)
+        let driverId = null;
+        let driverName = null;
+        if (user.role === 'manager') {
+            const sel = document.getElementById('driverSelect');
+            if (sel) {
+                driverId = sel.value;
+                // find name from allUsers
+                const dObj = (allUsers || []).find(u => u._id === driverId) || null;
+                driverName = dObj ? (dObj.fullName || dObj.username) : (driverId === user._id ? (user.fullName || user.username) : '');
+            }
+        } else if (user.role === 'driver') {
+            driverId = user._id;
+            driverName = user.fullName || user.username;
+        }
+
+        inMessage.className = 'text-gray-500 text-sm mt-2 text-center';
+        inMessage.textContent = 'Generating Token...';
+
+        try {
+            const payload = { carNumber, customerName, pointId: assignedPointId, driverId };
+            const res = await fetch(`${API_BASE_URL}/api/tokens/in`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                inMessage.className = 'text-green-600 text-sm mt-2 text-center font-bold';
+                const tokenObj = data.token || data;
+                inMessage.textContent = `Token ${tokenObj.tokenNumber} generated for ${carNumber}!`;
+
+                // build popup data: prefer driverName from token response, fallback to our found name
+                const popupDriverName = (tokenObj.driverId && typeof tokenObj.driverId === 'object') ? (tokenObj.driverId.fullName || tokenObj.driverId.username) : (driverName || tokenObj.driverName || 'N/A');
+                const popupPointName = (tokenObj.pointId && typeof tokenObj.pointId === 'object') ? tokenObj.pointId.name : (tokenObj.pointName || '');
+
+                showTokenPopup({
+                    tokenNumber: tokenObj.tokenNumber,
+                    customerName,
+                    driverName: popupDriverName,
+                    pointName: popupPointName
+                });
+
+                await fetchTokens();
+                event.target.reset();
+            } else {
+                const err = await res.json();
+                inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+                showCustomAlert(err.message || 'Failed to generate token.', 'Token Failed', 'error');
+                inMessage.textContent = err.message || 'Failed to generate token.';
+            }
+        } catch (err) {
+            console.error('Car IN error', err);
+            inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+            showCustomAlert('Network error: Could not connect to server.', 'Token Failed', 'error');
+            inMessage.textContent = 'Network error: Could not connect to server.';
+        }
+    }
+
+
     // MODIFIED: handleCarOutSubmit (Request 8)
     async function handleCarOutSubmit(tokenId, btn) {
         showCustomConfirm('Are you sure you want to mark this car OUT?', async () => {
@@ -1099,11 +1299,61 @@
         renderApp();
     }
 
+    function renderUserList() {
+        appRoot.innerHTML = `
+            <div class="min-h-screen bg-gray-50 pb-20">
+                <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
+                    <h1 class="text-lg font-semibold">User Management (Managers & Drivers)</h1>
+                    <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Back to Dashboard</button>
+                </header>
+
+                <main class="pt-20 p-4">
+                    <div id="user-list-container" class="bg-white p-6 rounded-lg shadow-xl">
+                        <h2 class="text-2xl font-bold text-gray-700 mb-6">User List</h2>
+                        <p id="list-message" class="text-gray-500 text-center mb-4">Fetching users...</p>
+                    </div>
+                </main>
+            </div>
+        `;
+
+        const container = document.getElementById('user-list-container');
+        try {
+            const usersToShow = allUsers.filter(u => u.role !== 'owner');
+            document.getElementById('list-message').remove();
+            container.insertAdjacentHTML('beforeend', renderUserTable(usersToShow));
+        } catch (err) {
+            console.error(err);
+            document.getElementById('list-message').textContent = 'Error: Could not load user data. Check backend logs.';
+            document.getElementById('list-message').classList.add('text-red-500');
+        }
+    }
+
+    function renderTokenList() {
+        const activeTokens = (currentTokens || []).filter(t => !t.outTime);
+        if (!activeTokens || activeTokens.length === 0) return '<p class="text-center text-gray-500 p-4">No active tokens found.</p>';
+
+        return activeTokens.map(token => {
+            const inTime = token.inTime ? new Date(token.inTime).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '';
+            const driverName = token.driverId && typeof token.driverId === 'object' ? (token.driverId.fullName || token.driverId.username) : (token.driverName || (token.driverId || 'N/A'));
+
+            return `
+                <div class="bg-gray-50 p-3 border-l-4 border-green-500 rounded-md shadow-sm flex justify-between items-center">
+                    <div>
+                        <p class="text-lg font-bold text-gray-800">${token.carNumber}</p>
+                        <p class="text-xs text-gray-500">Token: <span class="font-mono">${token.tokenNumber}</span> | Time: ${inTime}</p>
+                        <p class="text-sm text-gray-600">Cust: ${token.customerName || 'N/A'} | Driver: ${driverName}</p>
+                    </div>
+                    <button data-token-id="${token._id}" class="car-out-btn bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm whitespace-nowrap">Car OUT</button>
+                </div>
+            `;
+        }).join('');
+    }
+
     // --- INIT / APP (Request 10) ---
     function renderApp() {
         if (isSplash) renderSplashScreen();
         else if (user) renderDashboard();
-        else renderUnifiedLogin(); // Go straight to unified login screen
+        else renderUnifiedLogin(); // Go straight to unified login screen (Request 10)
     }
 
     // start
