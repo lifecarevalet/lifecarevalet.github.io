@@ -611,8 +611,8 @@
             }
 
             // ⚠️ TEMPORARY TEST BLOCK START
-            // Agar iske baad bhi screen stuck hoti hai, toh problem renderDashboard() tak aane se pehle hai.
-            appRoot.innerHTML = '<div class="min-h-screen flex items-center justify-center text-2xl font-bold">DASHBOARD TEST SUCCESS</div>';
+            // Agar yeh block hataane par problem aati hai, to iska matlab hai ki renderDashboard ke andar ka code crash ho raha hai.
+            appRoot.innerHTML = '<div class="min-h-screen flex items-center justify-center text-2xl font-bold">DASHBOARD TEST SUCCESS (Login Flow is OK)</div>';
             return; 
             // ⚠️ TEMPORARY TEST BLOCK END
             
@@ -724,42 +724,59 @@
             const username = event.target.username.value;
             const password = event.target.password.value;
             const errorMessage = document.getElementById('error-message');
-            errorMessage.textContent = 'Logging in...';
+            errorMessage.className = 'text-gray-500 text-sm mt-3 text-center'; // Reset style
+            errorMessage.textContent = 'Attempting login...';
+            console.log('DEBUG: Attempting login for:', username); 
 
             try {
+                // Fetch Request
                 const response = await fetch(`${API_BASE_URL}/api/users/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
+                
+                console.log('DEBUG: API Response Status:', response.status); 
 
                 if (response.ok) {
+                    // Success
                     const data = await response.json();
+                    console.log('DEBUG: Login Successful, User Data Received.', data); 
 
                     if (data.role !== currentLoginRole) {
+                         errorMessage.className = 'text-red-500 text-sm mt-3 text-center font-bold';
                          errorMessage.textContent = `Login failed: Please log in as ${data.role.toUpperCase()} instead.`;
                          currentLoginRole = data.role; 
+                         console.error('DEBUG: Role Mismatch Error.'); 
                          return;
                     }
 
                     // 1. Store User Data
                     user = { ...data };
                     localStorage.setItem('user', JSON.stringify(user));
+                    errorMessage.className = 'text-green-600 text-sm mt-3 text-center font-bold';
                     errorMessage.textContent = 'Login Successful! Loading Dashboard...';
+                    console.log('DEBUG: User Data Stored. Calling renderDashboard().'); 
                     
-                    // 2. 🚨 IMMEDIATE RENDER: This must execute instantly without waiting for network.
+                    // 2. IMMEDIATE RENDER: Ab yeh turant 'DASHBOARD TEST SUCCESS' dikhayega.
                     renderDashboard(); 
                     
                 } else {
-                    const errorData = await response.json();
-                    errorMessage.textContent = errorData.message || 'Login Failed. Invalid Credentials.';
+                    // API Error (401, 404, 500 etc.)
+                    const errorData = await response.json().catch(() => ({ message: 'No error body received.' }));
+                    errorMessage.className = 'text-red-500 text-sm mt-3 text-center font-bold';
+                    errorMessage.textContent = errorData.message || `Login Failed. Server Error: ${response.status}`; 
+                    console.error('DEBUG: Login API Failed:', errorData);
                 }
             } catch (error) {
-                errorMessage.textContent = `Could not connect to the server. Check your URL or Railway status.`; 
-                console.error('Login error:', error);
+                // Network Error
+                errorMessage.className = 'text-red-500 text-sm mt-3 text-center font-bold';
+                errorMessage.textContent = `Network Error: Could not connect to the server (${API_BASE_URL}). Check URL or Backend Status.`; 
+                console.error('DEBUG: Network/Catch Error:', error);
             }
         }
-        
+
+
         async function handlePointCreateSubmit(event) {
             event.preventDefault();
             const form = event.target;
