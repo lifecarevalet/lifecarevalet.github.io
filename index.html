@@ -12,15 +12,15 @@
         .login-popup { animation: fadeIn 0.25s ease-out; }
         .modal { transition: opacity 0.25s ease-in-out; }
         /* Token popup */
-        .token-popup .token-number { font-size: clamp(28px, 8vw, 64px); letter-spacing: 2px; }
-        .token-popup .meta { font-size: 14px; }
+        /* Token number ko bada aur clear kiya hai */
+        .token-popup .token-number { font-size: clamp(36px, 10vw, 96px); letter-spacing: 3px; font-weight: 900; color: #10B981; }
+        .token-popup .meta { font-size: 16px; }
     </style>
 </head>
 <body class="bg-gray-100">
 
 <div id="app-root"></div>
 
-<!-- Edit Modal (reused) -->
 <div id="edit-modal" class="modal fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
     <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md">
         <h2 class="text-xl font-bold text-blue-700 mb-4" id="edit-modal-title">Edit User</h2>
@@ -52,7 +52,6 @@
     </div>
 </div>
 
-<!-- Token Popup -->
 <div id="token-popup" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 token-popup relative">
         <button id="token-popup-close" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900 text-xl font-bold">✕</button>
@@ -107,6 +106,27 @@
     function closeEditModal() {
         document.getElementById('edit-modal').classList.add('hidden');
     }
+
+    // --- CUSTOM POPUP FUNCTIONS (Hinglish Request: Replacing browser alert/confirm) ---
+    function showCustomAlert(message, isSuccess = true) {
+        const statusClass = isSuccess ? 'bg-green-100 text-green-800 border-green-500' : 'bg-red-100 text-red-800 border-red-500';
+        const alertDiv = document.createElement('div');
+        // Custom styling for a professional look
+        alertDiv.className = `fixed top-20 right-4 p-3 rounded-lg shadow-xl z-50 animate-fadeIn border-l-4 ${statusClass}`;
+        alertDiv.textContent = message;
+        document.body.appendChild(alertDiv);
+        setTimeout(() => alertDiv.remove(), 4000); // Alert 4 seconds tak rahega
+    }
+
+    function showCustomConfirm(message, callback) {
+        // Browser's confirm is used temporarily, should be replaced by a full modal later
+        if (confirm(message)) {
+            callback(true);
+        } else {
+            callback(false);
+        }
+    }
+    // --- END CUSTOM POPUP FUNCTIONS ---
 
     function showTokenPopup(data) {
         document.getElementById('popup-token').textContent = data.tokenNumber || '—';
@@ -254,21 +274,15 @@
 
         const pointOptions = (currentPoints || []).map(p => `<option value="${p._id}">${p.name}</option>`).join('');
 
-        // Manager select: if owner showing list, else if manager creating driver, auto-assign to self
+        // ------------------ START: Hinglish Request Implementation ------------------
+        // 1. MANAGER SELECT LOGIC (Auto-assign manager's ID, hide field)
         let managerSelectHtml = '';
         if (!isManagerView) {
             if (user && user.role === 'manager') {
-                // manager creating driver -> auto assign to self (disabled)
-                managerSelectHtml = `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Assign Manager</label>
-                        <select id="managerId" name="managerId" disabled class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                            <option value="${user._id}">${user.fullName || user.username} (You)</option>
-                        </select>
-                    </div>
-                `;
+                // Manager creating driver: Hide field, auto-assign in handleCreateUserSubmit
+                managerSelectHtml = ''; // <--- Manager field removed
             } else {
-                // owner creating driver -> choose from managers
+                // Owner creating driver -> choose from managers (Keep original logic)
                 const managerOptions = (currentManagers || []).map(m => `<option value="${m._id}">${m.fullName} (${m.username})</option>`).join('');
                 managerSelectHtml = `
                     <div>
@@ -281,6 +295,36 @@
                 `;
             }
         }
+
+        // 2. LOCATION SELECT LOGIC (Auto-assign manager's Location ID, hide select field)
+        let pointSelectHtml = `
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
+                <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    <option value="">-- Select Point --</option>
+                    ${pointOptions}
+                </select>
+            </div>
+        `;
+
+        if (user && user.role === 'manager' && !isManagerView) {
+            const managerPointId = user.pointId && typeof user.pointId === 'object' ? user.pointId._id : user.pointId;
+            const managerPointName = user.pointId && typeof user.pointId === 'object' ? user.pointId.name : 'Unassigned';
+
+            if (managerPointId) {
+                pointSelectHtml = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Assigned Location</label>
+                        <input type="hidden" id="pointId" name="pointId" value="${managerPointId}">
+                        <p class="mt-1 block w-full px-3 py-2 bg-gray-200 text-gray-700 rounded-md font-medium">${managerPointName} (Auto Assigned)</p>
+                    </div>
+                `; // <--- Location field replaced by hidden input + text for Manager
+            } else {
+                pointSelectHtml = `<p class="text-red-500 font-bold">Error: Manager is not assigned to a Location Point. Cannot add driver.</p>`;
+            }
+        }
+        // ------------------ END: Hinglish Request Implementation ------------------
+
 
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
@@ -307,13 +351,7 @@
                                 <input type="text" id="fullName" name="fullName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                             </div>
 
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
-                                <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                                    <option value="">-- Select Point --</option>
-                                    ${pointOptions}
-                                </select>
-                            </div>
+                            ${pointSelectHtml}
 
                             ${managerSelectHtml}
 
@@ -480,7 +518,6 @@
                                     <label class="block text-sm font-medium text-gray-700">Customer Name (Optional)</label>
                                     <input type="text" id="customerName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Rahul Sharma">
                                 </div>
-                                <!-- DRIVER SELECT: shown only for manager -->
                                 ${isManager ? `
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Select Driver (or choose yourself)</label>
@@ -630,16 +667,27 @@
         messageElement.className = 'text-gray-500 text-sm mt-3 text-center';
         messageElement.textContent = `Creating ${role}...`;
 
-        // decide managerId: if manager is creating driver and managerId field disabled, take value from select
-        const managerIdField = form.querySelector('#managerId');
-        const managerId = managerIdField ? (managerIdField.disabled ? managerIdField.value : managerIdField.value) : null;
+        // ------------------ START: Hinglish Request Implementation (Auto-assign Manager/Location) ------------------
+        let pointId = form.pointId.value; // Default: from form (used by Owner/Manager creation)
+        let managerId = null; // Default
+
+        // If Manager is creating a Driver, auto-assign manager's ID and Location ID
+        if (role === 'driver' && user && user.role === 'manager') {
+            managerId = user._id; // Manager is the manager
+            pointId = user.pointId && typeof user.pointId === 'object' ? user.pointId._id : user.pointId; // Manager's pointId is the driver's pointId
+        } else if (role === 'driver' && user && user.role === 'owner') {
+            // Owner is creating a driver (uses the select fields)
+            const managerIdField = form.querySelector('#managerId');
+            managerId = managerIdField ? managerIdField.value : null;
+        }
+        // ------------------ END: Hinglish Request Implementation ------------------
 
         const payload = {
             username: form.username.value,
             password: form.password.value,
             fullName: form.fullName.value,
             role: role,
-            pointId: form.pointId.value,
+            pointId: pointId,
             managerId: role === 'driver' ? managerId : null
         };
 
@@ -676,30 +724,33 @@
     }
 
     async function handleUserDelete(userId) {
-        if (!confirm('Are you sure you want to permanently delete this user? This cannot be undone.')) return;
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
-            });
-            if (res.ok) {
-                alert('User deleted successfully.');
-                await fetchAllUsersAndManagers();
-                renderUserList();
-            } else {
-                const err = await res.json();
-                alert(err.message || 'Failed to delete user.');
+        // Old browser confirm replaced by custom
+        showCustomConfirm('Are you sure you want to permanently delete this user? This cannot be undone.', async (confirmed) => {
+            if (!confirmed) return;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showCustomAlert('User deleted successfully.', true); // Custom Alert
+                    await fetchAllUsersAndManagers();
+                    renderUserList();
+                } else {
+                    const err = await res.json();
+                    showCustomAlert(err.message || 'Failed to delete user.', false); // Custom Alert
+                }
+            } catch (err) {
+                console.error('Delete User error', err);
+                showCustomAlert('Network error: Could not connect to server to delete user.', false); // Custom Alert
             }
-        } catch (err) {
-            console.error('Delete User error', err);
-            alert('Network error: Could not connect to server to delete user.');
-        }
+        });
     }
 
     async function handleUserEdit(userId) {
         const userToEdit = allUsers.find(u => u._id === userId);
         if (!userToEdit) {
-            alert('User not found in list.');
+            showCustomAlert('User not found in list.', false); // Custom Alert
             return;
         }
 
@@ -844,29 +895,33 @@
     }
 
     async function handleCarOutSubmit(tokenId, btn) {
-        if (!confirm('Are you sure you want to mark this car OUT?')) return;
-        btn.textContent = 'Processing...';
-        btn.disabled = true;
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
-                method: 'POST',
-                headers: getAuthHeaders()
-            });
-            if (res.ok) {
-                alert('Car marked OUT successfully!');
-                await fetchTokens();
-            } else {
-                const err = await res.json();
-                alert(err.message || 'Failed to mark car OUT.');
+        // Browser confirm replaced by custom function
+        showCustomConfirm('Are you sure you want to mark this car OUT?', async (confirmed) => {
+            if (!confirmed) return; // Agar confirm nahi kiya toh return ho jao
+
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                if (res.ok) {
+                    showCustomAlert('Car marked OUT successfully!', true); // Custom Alert
+                    await fetchTokens();
+                } else {
+                    const err = await res.json();
+                    showCustomAlert(err.message || 'Failed to mark car OUT.', false); // Custom Alert
+                    btn.textContent = 'Car OUT';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error('Car OUT error', err);
+                showCustomAlert('Network error: Could not connect to server.', false); // Custom Alert
                 btn.textContent = 'Car OUT';
                 btn.disabled = false;
             }
-        } catch (err) {
-            console.error('Car OUT error', err);
-            alert('Network error: Could not connect to server.');
-            btn.textContent = 'Car OUT';
-            btn.disabled = false;
-        }
+        });
     }
 
     function attachCarOutHandlers() {
