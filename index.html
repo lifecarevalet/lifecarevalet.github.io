@@ -453,8 +453,16 @@
                         <p class="text-xs">Location: ${user.pointId && typeof user.pointId === 'object' ? user.pointId.name : (user.pointId || 'Not Assigned')}</p>
                     </div>
                     <div class="flex items-center gap-3">
-                        ${(isManager) ? `<button id="add-driver-btn" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Driver</button>` : ''}
-                        ${(isOwner) ? `<button id="manage-users-btn" class="bg-gray-600 text-white py-1 px-3 rounded text-sm">Manage Users</button>` : ''}
+                        ${(isOwner) ? `
+                            <button id="add-manager-btn" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Manager</button>
+                            <button id="add-driver-btn-owner" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Driver</button>
+                            <button id="manage-users-btn" class="bg-gray-600 text-white py-1 px-3 rounded text-sm">Manage Users</button>
+                        ` : ''}
+
+                        ${(isManager) ? `
+                            <button id="add-driver-btn" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Driver</button>
+                        ` : ''}
+
                         <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Logout</button>
                     </div>
                 </header>
@@ -468,12 +476,10 @@
                                     <label class="block text-sm font-medium text-gray-700">Car Number</label>
                                     <input type="text" id="carNumber" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md uppercase" placeholder="e.g., MH01AB1234">
                                 </div>
-
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">Customer Name (Optional)</label>
                                     <input type="text" id="customerName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Rahul Sharma">
                                 </div>
-
                                 <!-- DRIVER SELECT: shown only for manager -->
                                 ${isManager ? `
                                     <div>
@@ -483,7 +489,6 @@
                                         </select>
                                     </div>
                                 ` : ''}
-
                                 <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Generate Token</button>
                                 <p id="in-message" class="text-sm mt-2 text-center"></p>
                             </form>
@@ -503,13 +508,16 @@
 
         document.getElementById('logout-button').addEventListener('click', handleLogout);
 
+        if (isOwner) {
+            document.getElementById('add-manager-btn').addEventListener('click', () => renderUserManagement('manager'));
+            document.getElementById('add-driver-btn-owner').addEventListener('click', () => renderUserManagement('driver'));
+            document.getElementById('manage-users-btn').addEventListener('click', renderUserList);
+        }
+
         if (isManager) {
             document.getElementById('add-driver-btn').addEventListener('click', () => renderUserManagement('driver'));
             // populate manager's driver dropdown with assigned drivers (fetch)
             populateManagerDriverSelect();
-        }
-        if (isOwner) {
-            document.getElementById('manage-users-btn').addEventListener('click', renderUserList);
         }
 
         if (isDriver || isManager) {
