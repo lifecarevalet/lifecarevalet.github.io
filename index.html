@@ -12,8 +12,8 @@
         .login-popup { animation: fadeIn 0.25s ease-out; }
         .modal { transition: opacity 0.25s ease-in-out; }
         /* Token popup */
-        .token-popup .token-number { font-size: clamp(36px, 10vw, 96px); letter-spacing: 3px; font-weight: 900; color: #10B981; }
-        .token-popup .meta { font-size: 16px; }
+        .token-popup .token-number { font-size: clamp(28px, 8vw, 64px); letter-spacing: 2px; }
+        .token-popup .meta { font-size: 14px; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -22,61 +22,46 @@
 
 <div id="edit-modal" class="modal fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
     <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md">
-        <h2 class="text-xl font-bold text-blue-700 mb-4" id="edit-modal-title">Edit User</h2>
+        <h2 id="edit-modal-title" class="text-xl font-bold text-gray-800 mb-4">Edit User/Location</h2>
         <form id="edit-user-form" class="space-y-4">
-            <input type="hidden" id="edit-user-id" name="userId">
+            <input type="hidden" id="edit-user-id" name="userId"> 
+            
             <div>
                 <label for="edit-full-name" class="block text-sm font-medium text-gray-700">Full Name</label>
                 <input type="text" id="edit-full-name" name="fullName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
             </div>
 
-            <div id="edit-manager-container" class="hidden">
-                <label for="edit-manager-id" class="block text-sm font-medium text-gray-700">Re-assign Manager</label>
-                <select id="edit-manager-id" name="managerId" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></select>
-            </div>
-
             <div>
-                <label for="edit-point-id" class="block text-sm font-medium text-gray-700">Re-assign Location</label>
-                <select id="edit-point-id" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></select>
+                <label for="edit-point-id" class="block text-sm font-medium text-gray-700">Assign Location</label>
+                <select id="edit-point-id" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </select>
+            </div>
+            
+            <div id="edit-manager-container">
+                <label for="edit-manager-id" class="block text-sm font-medium text-gray-700">Assign Manager</label>
+                <select id="edit-manager-id" name="managerId" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </select>
             </div>
 
-            <p class="text-sm text-red-500">Note: Use this form to re-assign. You cannot change password here.</p>
-            <p id="edit-message" class="text-sm text-center"></p>
-
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="closeEditModal()" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400">Cancel</button>
-                <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">Save Changes</button>
-            </div>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 font-semibold mt-6">Save Changes</button>
+            <p id="edit-message" class="text-sm mt-3 text-center"></p>
         </form>
+        <button onclick="closeEditModal()" class="w-full mt-4 text-gray-600 hover:text-gray-800 text-sm">Cancel</button>
     </div>
 </div>
 
-<div id="token-popup" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 token-popup relative">
-        <button id="token-popup-close" class="absolute top-4 right-4 text-gray-600 hover:text-gray-900 text-xl font-bold">✕</button>
-        <div class="text-center">
-            <div class="text-sm text-gray-500 mb-2">Life Care Valet Parking</div>
-            <div id="popup-company" class="text-lg font-semibold text-gray-800">Life Care Valet Parking</div>
-
-            <div class="my-4">
-                <div id="popup-token" class="token-number font-extrabold text-gray-800"></div>
-            </div>
-
-            <div class="meta text-gray-700 space-y-1">
-                <div id="popup-customer" class="font-medium"></div>
-                <div id="popup-driver"></div>
-                <div id="popup-point" class="text-sm text-gray-500"></div>
-            </div>
-
-            <div class="mt-4 border-t pt-3 text-sm text-gray-600">
-                <div>Irshad Bloch — <span class="font-mono">8320678237</span></div>
-                <div>Akhtar Bloch — <span class="font-mono">9099090197</span></div>
-            </div>
-
-            <div class="mt-6">
-                <button id="token-popup-close-btn" class="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700">Close</button>
-            </div>
+<div id="token-popup" class="token-popup modal fixed inset-0 bg-black bg-opacity-80 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-sm text-center">
+        <h2 class="text-gray-600 mb-2 font-light text-sm">TOKEN GENERATED</h2>
+        <p id="popup-token" class="token-number text-green-700 font-extrabold"></p>
+        <div class="mt-4 space-y-1 meta">
+            <p id="popup-customer" class="text-gray-700"></p>
+            <p id="popup-point" class="text-gray-500"></p>
+            <p id="popup-driver" class="text-gray-500"></p>
         </div>
+        
+        <button id="token-popup-close-btn" class="w-full mt-6 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 font-semibold">CLOSE</button>
+        <button id="token-popup-close" class="hidden"></button>
     </div>
 </div>
 
@@ -101,31 +86,30 @@
             'Authorization': `Bearer ${user ? user.token : ''}`
         };
     }
+    
+    // NEW: Function to clean up the modal after Point Edit
+    function cleanupEditModal() {
+        const form = document.getElementById('edit-user-form');
+        
+        // Revert modal fields back to User Edit state
+        document.getElementById('edit-user-id').name = 'userId';
+        document.getElementById('edit-full-name').name = 'fullName';
+        document.getElementById('edit-full-name').parentNode.querySelector('label').textContent = 'Full Name';
 
+        // Remove the temporary address input
+        const addressContainer = document.getElementById('edit-address-container');
+        if (addressContainer) addressContainer.remove();
+
+        // Show user-specific fields again (they are hidden in Point Edit mode)
+        document.getElementById('edit-manager-container').classList.remove('hidden');
+        document.getElementById('edit-point-id').parentNode.classList.remove('hidden'); 
+    }
+
+    // MODIFIED: closeEditModal now calls cleanup
     function closeEditModal() {
+        cleanupEditModal();
         document.getElementById('edit-modal').classList.add('hidden');
     }
-
-    // --- CUSTOM POPUP FUNCTIONS (Hinglish Request: Replacing browser alert/confirm) ---
-    function showCustomAlert(message, isSuccess = true) {
-        const statusClass = isSuccess ? 'bg-green-100 text-green-800 border-green-500' : 'bg-red-100 text-red-800 border-red-500';
-        const alertDiv = document.createElement('div');
-        // Custom styling for a professional look
-        alertDiv.className = `fixed top-20 right-4 p-3 rounded-lg shadow-xl z-50 animate-fadeIn border-l-4 ${statusClass}`;
-        alertDiv.textContent = message;
-        document.body.appendChild(alertDiv);
-        setTimeout(() => alertDiv.remove(), 4000); // Alert 4 seconds tak rahega
-    }
-
-    function showCustomConfirm(message, callback) {
-        // Browser's confirm is used temporarily, should be replaced by a full modal later
-        if (confirm(message)) {
-            callback(true);
-        } else {
-            callback(false);
-        }
-    }
-    // --- END CUSTOM POPUP FUNCTIONS ---
 
     function showTokenPopup(data) {
         document.getElementById('popup-token').textContent = data.tokenNumber || '—';
@@ -258,66 +242,64 @@
         document.getElementById('back-role').addEventListener('click', () => { currentLoginRole = null; renderRoleSelection(); });
     }
 
-    // --- RENDER POINT CREATION FUNCTION (Updated for new fields) ---
-    function renderPointCreation() {
+    async function renderUserManagement(role) {
+        // FIX 1: Fetch points and users BEFORE rendering the form
+        const isOwner = user && user.role === 'owner';
+        const isManager = user && user.role === 'manager';
+        
+        // Show loading message while fetching
         appRoot.innerHTML = `
-            <div class="min-h-screen bg-gray-50 pb-20">
-                <header class="fixed-header bg-blue-700 text-white p-4 shadow-lg flex justify-between items-center">
-                    <h1 class="text-lg font-semibold">Add New Location Point</h1>
-                    <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Back to Dashboard</button>
-                </header>
-                <main class="pt-20 p-4 w-full max-w-lg mx-auto">
-                    <div class="bg-white p-6 rounded-lg shadow-xl">
-                        <h2 class="text-2xl font-bold text-blue-700 mb-6 text-center">Create New Location</h2>
-                        <form id="create-point-form" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">1. Hotel/Function Name (Required)</label>
-                                <input type="text" id="pointName" name="pointName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Hotel A">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">2. Complex Name (Optional)</label>
-                                <input type="text" id="complexName" name="complexName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., A One Complex">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">3. Full Address (Required)</label>
-                                <textarea id="address" name="address" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
-                            </div>
-
-                            <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 font-semibold mt-6">Create Location Point</button>
-                            <p id="point-create-message" class="text-sm mt-3 text-center"></p>
-                        </form>
-                    </div>
-                </main>
+            <div class="flex items-center justify-center min-h-screen text-gray-600">
+                <div class="w-8 h-8 border-4 border-t-4 border-blue-500 border-opacity-30 rounded-full animate-spin mr-3"></div>
+                Loading required data...
             </div>
         `;
-        document.getElementById('create-point-form').addEventListener('submit', handlePointCreateSubmit);
-    }
-    // --- END RENDER POINT CREATION FUNCTION ---
-
-
-    async function renderUserManagement(role) {
-        // if owner use global points/managers
-        if (user && user.role === 'owner') {
+        
+        // Await fetches only if data is missing
+        if (isOwner || isManager) {
             if (currentPoints.length === 0) await fetchPoints();
-            if (currentManagers.length === 0) await fetchAllUsersAndManagers();
-        } else if (user && user.role === 'manager') {
-            if (currentPoints.length === 0) await fetchPoints();
+        }
+        if (isOwner) {
+            if (allUsers.length === 0) await fetchAllUsersAndManagers();
         }
 
         const isManagerView = (role === 'manager');
         const title = isManagerView ? 'Add New Manager' : 'Add New Driver';
         const color = isManagerView ? 'yellow' : 'green';
 
+        // Check if required data is available
+        if (currentPoints.length === 0 && (isManagerView || role === 'driver')) {
+            appRoot.innerHTML = `
+                <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                    <div class="text-center p-6 bg-white rounded-lg shadow-xl">
+                        <h2 class="text-xl font-bold text-red-600 mb-4">Error: Location Data Missing</h2>
+                        <p class="text-gray-700 mb-6">Owner: Please create at least one location point first.</p>
+                        <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded text-sm">Back to Dashboard</button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+
         const pointOptions = (currentPoints || []).map(p => `<option value="${p._id}">${p.name}</option>`).join('');
 
-        // 1. MANAGER SELECT LOGIC
+        // Manager select: if owner showing list, else if manager creating driver, auto-assign to self
         let managerSelectHtml = '';
-        if (!isManagerView) {
-            if (user && user.role === 'manager') {
-                // Manager creating driver: Hide field, auto-assign in handleCreateUserSubmit
-                managerSelectHtml = ''; // <--- Manager field removed
-            } else {
-                // Owner creating driver -> choose from managers (Keep original logic)
+        if (role === 'driver') {
+            if (isManager) {
+                // manager creating driver -> auto assign to self (disabled)
+                managerSelectHtml = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Assign Manager</label>
+                        <select id="managerId" name="managerId" disabled class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="${user._id}">${user.fullName || user.username} (You)</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Driver will be automatically assigned to you.</p>
+                    </div>
+                `;
+            } else if (isOwner) {
+                // owner creating driver -> choose from managers
                 const managerOptions = (currentManagers || []).map(m => `<option value="${m._id}">${m.fullName} (${m.username})</option>`).join('');
                 managerSelectHtml = `
                     <div>
@@ -331,43 +313,7 @@
             }
         }
 
-        // 2. LOCATION SELECT LOGIC (Manager: Hatao Location Select)
-        let pointSelectHtml = '';
-
-        if (isManagerView) { // OWNER is creating a MANAGER
-            // Hinglish Request: Manager add karte wakt Assign Location ka option nikal diya hai
-            pointSelectHtml = ''; 
-        } else { // OWNER/MANAGER is creating a DRIVER
-            if (user && user.role === 'manager') {
-                // Manager creating driver: Auto-assign manager's Location ID, hide select field
-                const managerPointId = user.pointId && typeof user.pointId === 'object' ? user.pointId._id : user.pointId;
-                const managerPointName = user.pointId && typeof user.pointId === 'object' ? user.pointId.name : 'Unassigned';
-
-                if (managerPointId) {
-                    pointSelectHtml = `
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Assigned Location</label>
-                            <input type="hidden" id="pointId" name="pointId" value="${managerPointId}">
-                            <p class="mt-1 block w-full px-3 py-2 bg-gray-200 text-gray-700 rounded-md font-medium">${managerPointName} (Auto Assigned)</p>
-                        </div>
-                    `; // <--- Location field replaced by hidden input + text for Manager
-                } else {
-                    pointSelectHtml = `<p class="text-red-500 font-bold">Error: Manager is not assigned to a Location Point. Cannot add driver.</p>`;
-                }
-            } else {
-                // Owner creating driver: Show select field
-                pointSelectHtml = `
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
-                        <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
-                            <option value="">-- Select Point --</option>
-                            ${pointOptions}
-                        </select>
-                    </div>
-                `;
-            }
-        }
-
+        // Render the main form now that data is ready
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
                 <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
@@ -393,7 +339,13 @@
                                 <input type="text" id="fullName" name="fullName" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                             </div>
 
-                            ${pointSelectHtml}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Assign Location (Hotel/Function Name)</label>
+                                <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                                    <option value="">-- Select Point --</option>
+                                    ${pointOptions}
+                                </select>
+                            </div>
 
                             ${managerSelectHtml}
 
@@ -408,6 +360,95 @@
         document.getElementById('create-user-form').addEventListener('submit', handleCreateUserSubmit);
     }
 
+    // NEW: Render Location/Point Management UI
+    function renderPointTable(points) {
+        if (!points || points.length === 0) {
+            return '<p class="text-center text-gray-500 p-4">No Locations (Points) found. Create one above.</p>';
+        }
+
+        const rows = points.map(p => {
+            return `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${p.name || '—'}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${p.address || '—'}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${formatDateIso(p.createdAt)}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="handlePointEdit('${p._id}')" class="text-indigo-600 hover:text-indigo-900 mr-2 text-xs">Edit</button>
+                        <button onclick="handlePointDelete('${p._id}', '${p.name}')" class="text-red-600 hover:text-red-900 text-xs">Delete</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Name</th>
+                            <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Address</th>
+                            <th class="px-3 py-3.5 text-left text-xs font-semibold text-gray-900">Created</th>
+                            <th class="relative py-3.5 pl-3 pr-4 sm:pr-6"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    async function renderPointList() {
+        appRoot.innerHTML = `
+            <div class="min-h-screen bg-gray-50 pb-20">
+                <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
+                    <h1 class="text-lg font-semibold">Location (Point) Management</h1>
+                    <button onclick="renderDashboard()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Back to Dashboard</button>
+                </header>
+
+                <main class="pt-20 p-4 w-full max-w-2xl mx-auto">
+                    <div class="bg-white p-6 rounded-lg shadow-xl mb-6">
+                        <h2 class="text-2xl font-bold text-blue-700 mb-6 text-center">Create New Location Point</h2>
+                        <form id="create-point-form" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Location Name (e.g., Hotel Taj)</label>
+                                <input type="text" id="name" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Address / Description</label>
+                                <input type="text" id="address" name="address" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                            </div>
+                            <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 font-semibold mt-6">Create Location</button>
+                            <p id="point-create-message" class="text-sm mt-3 text-center"></p>
+                        </form>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-xl">
+                        <h2 class="text-2xl font-bold text-gray-700 mb-6">Existing Locations</h2>
+                        <p id="point-list-message" class="text-gray-500 text-center mb-4">Fetching locations...</p>
+                        <div id="point-list-container"></div>
+                    </div>
+                </main>
+            </div>
+        `;
+
+        document.getElementById('create-point-form').addEventListener('submit', handlePointCreateSubmit);
+
+        const container = document.getElementById('point-list-container');
+        try {
+            const fetched = await fetchPoints();
+            if (!fetched) throw new Error('Could not fetch locations');
+            document.getElementById('point-list-message').remove();
+            container.insertAdjacentHTML('beforeend', renderPointTable(currentPoints));
+        } catch (err) {
+            console.error(err);
+            document.getElementById('point-list-message').textContent = 'Error: Could not load location data. Check backend logs.';
+            document.getElementById('point-list-message').classList.add('text-red-500');
+        }
+    }
+    
+    // ... renderUserTable, renderUserList, renderTokenList (unchanged) ...
     function renderUserTable(users) {
         if (!users || users.length === 0) {
             return '<p class="text-center text-gray-500 p-4">No Managers or Drivers found.</p>';
@@ -496,7 +537,7 @@
             document.getElementById('list-message').classList.add('text-red-500');
         }
     }
-
+    
     function renderTokenList() {
         const activeTokens = (currentTokens || []).filter(t => !t.outTime);
         if (!activeTokens || activeTokens.length === 0) return '<p class="text-center text-gray-500 p-4">No active tokens found.</p>';
@@ -534,10 +575,10 @@
                     </div>
                     <div class="flex items-center gap-3">
                         ${(isOwner) ? `
-                            <button id="add-point-btn" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Location Point</button>
                             <button id="add-manager-btn" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Manager</button>
                             <button id="add-driver-btn-owner" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">+ Add Driver</button>
                             <button id="manage-users-btn" class="bg-gray-600 text-white py-1 px-3 rounded text-sm">Manage Users</button>
+                            <button id="manage-points-btn" class="bg-purple-600 text-white py-1 px-3 rounded text-sm">Manage Locations</button>
                         ` : ''}
 
                         ${(isManager) ? `
@@ -563,7 +604,7 @@
                                 </div>
                                 ${isManager ? `
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Select Driver</label>
+                                        <label class="block text-sm font-medium text-gray-700">Select Driver (or choose yourself)</label>
                                         <select id="driverSelect" name="driverSelect" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                                             <option value="${user._id}">-- ${user.fullName || user.username} (You as Driver) --</option>
                                         </select>
@@ -589,10 +630,10 @@
         document.getElementById('logout-button').addEventListener('click', handleLogout);
 
         if (isOwner) {
-            document.getElementById('add-point-btn').addEventListener('click', renderPointCreation); // NEW HANDLER
             document.getElementById('add-manager-btn').addEventListener('click', () => renderUserManagement('manager'));
             document.getElementById('add-driver-btn-owner').addEventListener('click', () => renderUserManagement('driver'));
             document.getElementById('manage-users-btn').addEventListener('click', renderUserList);
+            document.getElementById('manage-points-btn').addEventListener('click', renderPointList);
         }
 
         if (isManager) {
@@ -606,8 +647,10 @@
         }
 
         fetchTokens();
-        if (isOwner) {
+        if (isOwner || isManager) {
             fetchPoints();
+        }
+        if (isOwner || isManager) {
             fetchAllUsersAndManagers();
         }
     }
@@ -621,20 +664,8 @@
             if (!select) return;
             // clear except first option (you)
             const youOption = select.querySelector('option') ? select.querySelector('option').outerHTML : `<option value="${user._id}">${user.fullName || user.username} (You as Driver)</option>`;
-            
-            // Filter drivers assigned to the current manager
-            const drivers = (allUsers || []).filter(u => 
-                u.role === 'driver' && 
-                u.managerId && 
-                (
-                    (typeof u.managerId === 'object' && u.managerId._id === user._id) || 
-                    (u.managerId === user._id)
-                )
-            );
-            
+            const drivers = (allUsers || []).filter(u => u.role === 'driver' && ((u.managerId && ((typeof u.managerId === 'object' && u.managerId._id === user._id) || u.managerId === user._id))));
             const driversHtml = drivers.map(d => `<option value="${d._id}">${d.fullName} (${d.username})</option>`).join('');
-            
-            // Manager aur uske drivers ko show karo
             select.innerHTML = youOption + driversHtml;
         } catch (err) {
             console.error('populateManagerDriverSelect', err);
@@ -667,7 +698,7 @@
                 user = { ...data };
                 localStorage.setItem('user', JSON.stringify(user));
                 await fetchTokens();
-                if (!currentPoints.length) await fetchPoints();
+                await fetchPoints();
                 await fetchAllUsersAndManagers();
                 renderDashboard();
             } else {
@@ -686,19 +717,10 @@
         messageElement.textContent = 'Creating Location...';
         const form = event.target;
 
-        const hotelName = form.pointName.value.trim();
-        const complexName = form.complexName.value.trim();
-        const address = form.address.value.trim();
-        
-        // Frontend mein dono name combine karke backend ke single 'name' field mein bhej rahe hain
-        const finalName = complexName ? `${hotelName} (${complexName})` : hotelName;
-
         const formData = {
-            name: finalName,
-            address: address, // Address field
+            name: form.name.value,
+            address: form.address.value,
         };
-        
-        // Developer Note: Agar backend complexName ko alag field mein store kar sakta hai, toh API update karein. Abhi humne isko name mein combine kiya hai.
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/points/admin/create`, {
@@ -712,6 +734,10 @@
                 messageElement.textContent = `Location '${data.point.name}' created successfully! ID: ${data.point._id}`;
                 form.reset();
                 await fetchPoints();
+                // If the user is on the point list page, refresh it
+                if (document.getElementById('point-list-container')) {
+                    document.getElementById('point-list-container').innerHTML = renderPointTable(currentPoints);
+                }
             } else {
                 const errorData = await res.json();
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
@@ -732,40 +758,29 @@
         messageElement.className = 'text-gray-500 text-sm mt-3 text-center';
         messageElement.textContent = `Creating ${role}...`;
 
-        // ------------------ START: Auto-assign Manager/Location logic ------------------
-        let pointId = null; 
-        let managerId = null; 
+        let managerId = null;
 
         if (role === 'driver') {
-            if (user && user.role === 'manager') {
-                // Manager creating a Driver: Auto-assign manager's ID and Location ID
+            if (user.role === 'manager') {
+                // FIX 3: If logged-in user is a Manager creating a Driver, use the Manager's own ID
                 managerId = user._id; 
-                pointId = user.pointId && typeof user.pointId === 'object' ? user.pointId._id : user.pointId; 
-            } else if (user && user.role === 'owner') {
-                // Owner creating a Driver: uses the select fields
+            } else if (user.role === 'owner') {
+                // If logged-in user is Owner, take the value from the selected manager dropdown
                 const managerIdField = form.querySelector('#managerId');
-                managerId = managerIdField ? managerIdField.value : null;
-                pointId = form.pointId.value; // Owner selects location for driver
+                if (managerIdField) {
+                    managerId = managerIdField.value;
+                }
             }
-        } else if (role === 'manager' && user && user.role === 'owner') {
-             // Owner creating a Manager: No location assigned at creation (pointId will be null/unassigned)
-             pointId = null; // <--- Point ID removed as per request
         }
-        // ------------------ END: Auto-assign Manager/Location logic ------------------
 
         const payload = {
             username: form.username.value,
             password: form.password.value,
             fullName: form.fullName.value,
             role: role,
+            pointId: form.pointId.value,
             managerId: role === 'driver' ? managerId : null
         };
-        
-        // Point ID only send if it's not null/unassigned (like for Manager creation)
-        if (pointId) {
-             payload.pointId = pointId;
-        }
-
 
         if (role === 'driver' && !payload.managerId) {
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
@@ -786,7 +801,7 @@
                 form.reset();
                 await fetchAllUsersAndManagers();
                 // if manager created a driver, refresh manager's driver select
-                populateManagerDriverSelect();
+                if(user.role === 'manager') populateManagerDriverSelect();
             } else {
                 const err = await res.json();
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
@@ -800,43 +815,49 @@
     }
 
     async function handleUserDelete(userId) {
-        // Old browser confirm replaced by custom function
-        showCustomConfirm('Are you sure you want to permanently delete this user? This cannot be undone.', async (confirmed) => {
-            if (!confirmed) return;
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
-                });
-                if (res.ok) {
-                    showCustomAlert('User deleted successfully.', true); // Custom Alert
-                    await fetchAllUsersAndManagers();
-                    renderUserList();
-                } else {
-                    const err = await res.json();
-                    showCustomAlert(err.message || 'Failed to delete user.', false); // Custom Alert
-                }
-            } catch (err) {
-                console.error('Delete User error', err);
-                showCustomAlert('Network error: Could not connect to server to delete user.', false); // Custom Alert
+        if (!confirm('Are you sure you want to permanently delete this user? This cannot be undone.')) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/users/admin/delete-user/${userId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                alert('User deleted successfully.');
+                await fetchAllUsersAndManagers();
+                renderUserList();
+            } else {
+                const err = await res.json();
+                alert(err.message || 'Failed to delete user.');
             }
-        });
+        } catch (err) {
+            console.error('Delete User error', err);
+            alert('Network error: Could not connect to server to delete user.');
+        }
     }
 
+    // MODIFIED: handleUserEdit to use cleanup and restore modal state
     async function handleUserEdit(userId) {
         const userToEdit = allUsers.find(u => u._id === userId);
         if (!userToEdit) {
-            showCustomAlert('User not found in list.', false); // Custom Alert
+            alert('User not found in list.');
             return;
         }
 
+        // Clean up modal from any previous Point Edit
+        cleanupEditModal();
+        
+        // Restore/Set User Edit specific fields
         document.getElementById('edit-modal-title').textContent = `Edit User: ${userToEdit.username} (${userToEdit.role})`;
+        document.getElementById('edit-user-id').name = 'userId';
         document.getElementById('edit-user-id').value = userId;
+        document.getElementById('edit-full-name').name = 'fullName';
+        document.getElementById('edit-full-name').parentNode.querySelector('label').textContent = 'Full Name';
         document.getElementById('edit-full-name').value = userToEdit.fullName || '';
 
         // Populate points
         const pointSelect = document.getElementById('edit-point-id');
         pointSelect.innerHTML = (currentPoints || []).map(p => `<option value="${p._id}" ${p._id === (userToEdit.pointId && userToEdit.pointId._id ? userToEdit.pointId._id : userToEdit.pointId) ? 'selected' : ''}>${p.name}</option>`).join('');
+        document.getElementById('edit-point-id').parentNode.classList.remove('hidden');
 
         // Manager container
         const managerContainer = document.getElementById('edit-manager-container');
@@ -891,6 +912,106 @@
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
+    
+    // NEW: Handlers for Point Edit/Delete
+    async function handlePointDelete(pointId, pointName) {
+        if (!confirm(`Are you sure you want to permanently delete the location: ${pointName}? This cannot be undone.`)) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/points/admin/delete/${pointId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                alert(`Location '${pointName}' deleted successfully.`);
+                await fetchPoints();
+                renderPointList();
+            } else {
+                const err = await res.json();
+                alert(err.message || 'Failed to delete location.');
+            }
+        } catch (err) {
+            console.error('Delete Point error', err);
+            alert('Network error: Could not connect to server to delete location.');
+        }
+    }
+
+    async function handlePointEdit(pointId) {
+        const pointToEdit = currentPoints.find(p => p._id === pointId);
+        if (!pointToEdit) {
+            alert('Location not found in list.');
+            return;
+        }
+
+        // Clean up modal from any previous User Edit/Point Edit
+        cleanupEditModal();
+        
+        // HACK: Reusing generic fields for point edit
+        document.getElementById('edit-modal-title').textContent = `Edit Location: ${pointToEdit.name}`;
+        
+        // Setup fields for Name (using fullName field)
+        const tempNameLabel = document.getElementById('edit-full-name').parentNode.querySelector('label');
+        tempNameLabel.textContent = 'Location Name';
+        document.getElementById('edit-full-name').value = pointToEdit.name || '';
+        document.getElementById('edit-full-name').name = 'name'; 
+
+        // Add a temporary input for Address
+        const addressInputHtml = `
+            <div id="edit-address-container">
+                <label for="edit-address" class="block text-sm font-medium text-gray-700">Address / Description</label>
+                <input type="text" id="edit-address" name="address" value="${pointToEdit.address || ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+        `;
+        document.getElementById('edit-full-name').parentNode.insertAdjacentHTML('afterend', addressInputHtml);
+        
+        // Hide user-specific fields
+        document.getElementById('edit-manager-container').classList.add('hidden');
+        document.getElementById('edit-point-id').parentNode.classList.add('hidden'); 
+
+        // Set the ID
+        document.getElementById('edit-user-id').value = pointId;
+        document.getElementById('edit-user-id').name = 'pointId'; 
+
+        document.getElementById('edit-user-form').onsubmit = handleEditPointSubmit;
+        document.getElementById('edit-modal').classList.remove('hidden');
+    }
+
+    async function handleEditPointSubmit(event) {
+        event.preventDefault();
+        const form = event.target;
+        const pointId = form.pointId.value;
+        const messageElement = document.getElementById('edit-message');
+        messageElement.className = 'text-gray-500 text-sm mt-3 text-center';
+        messageElement.textContent = 'Saving changes...';
+
+        const updates = {
+            name: form.name.value,
+            address: form.address.value || ''
+        };
+        
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/points/admin/update/${pointId}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(updates)
+            });
+            if (res.ok) {
+                messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
+                messageElement.textContent = 'Location updated successfully!';
+                await fetchPoints();
+                renderPointList();
+                setTimeout(closeEditModal, 1000);
+            } else {
+                const err = await res.json();
+                messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                messageElement.textContent = err.message || 'Failed to update location.';
+            }
+        } catch (err) {
+            console.error('Update Point error', err);
+            messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            messageElement.textContent = 'Network error: Could not connect to server.';
+        }
+    }
+    // End New Point Handlers
 
     async function handleCarInSubmit(event) {
         event.preventDefault();
@@ -912,7 +1033,7 @@
             return;
         }
 
-        // If manager, get selected driver id (khud ya assigned driver)
+        // If manager, get selected driver id
         let driverId = null;
         let driverName = null;
         if (user.role === 'manager') {
@@ -971,33 +1092,29 @@
     }
 
     async function handleCarOutSubmit(tokenId, btn) {
-        // Browser confirm replaced by custom function
-        showCustomConfirm('Are you sure you want to mark this car OUT?', async (confirmed) => {
-            if (!confirmed) return; // Agar confirm nahi kiya toh return ho jao
-
-            btn.textContent = 'Processing...';
-            btn.disabled = true;
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
-                    method: 'POST',
-                    headers: getAuthHeaders()
-                });
-                if (res.ok) {
-                    showCustomAlert('Car marked OUT successfully!', true); // Custom Alert
-                    await fetchTokens();
-                } else {
-                    const err = await res.json();
-                    showCustomAlert(err.message || 'Failed to mark car OUT.', false); // Custom Alert
-                    btn.textContent = 'Car OUT';
-                    btn.disabled = false;
-                }
-            } catch (err) {
-                console.error('Car OUT error', err);
-                showCustomAlert('Network error: Could not connect to server.', false); // Custom Alert
+        if (!confirm('Are you sure you want to mark this car OUT?')) return;
+        btn.textContent = 'Processing...';
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/tokens/out/${tokenId}`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                alert('Car marked OUT successfully!');
+                await fetchTokens();
+            } else {
+                const err = await res.json();
+                alert(err.message || 'Failed to mark car OUT.');
                 btn.textContent = 'Car OUT';
                 btn.disabled = false;
             }
-        });
+        } catch (err) {
+            console.error('Car OUT error', err);
+            alert('Network error: Could not connect to server.');
+            btn.textContent = 'Car OUT';
+            btn.disabled = false;
+        }
     }
 
     function attachCarOutHandlers() {
