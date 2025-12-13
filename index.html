@@ -1033,9 +1033,21 @@
             if (res.ok) {
                 const data = await res.json();
                 
-                // FIX: Role mismatch warning removed completely to avoid user confusion.
-                // Upon successful login, the user will be directed to the dashboard of 
-                // the role returned by the server, regardless of which button they pressed.
+                // Get the actual role from the server response
+                const actualRole = data.role; 
+                // Get the role button the user pressed
+                const selectedRole = currentLoginRole; 
+
+                // *** UPDATED ROLE MISMATCH CHECK LOGIC ***
+                // Role mismatch check only for DRIVER and MANAGER logins. 
+                // OWNER login (ADMIN button) is always allowed if credentials are correct.
+                if (selectedRole !== 'owner' && selectedRole !== actualRole) {
+                     errorMessage.textContent = `Error: Role mismatch. Aapne ${selectedRole.toUpperCase()} chuna hai lekin yeh credentials ${actualRole.toUpperCase()} ke hain. Kripya sahi role chunein ya Owner se contact karein.`;
+                     // Prevent login continuation
+                     return; 
+                }
+                // *** END OF UPDATED ROLE MISMATCH CHECK LOGIC ***
+
                 errorMessage.textContent = 'Login Successful!';
 
                 user = { ...data };
