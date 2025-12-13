@@ -982,7 +982,9 @@
         // Request 1 Fix: Populate manager's driver dropdown - Wrapped in try/catch to prevent hang
         if (isManager) {
             try {
-                await populateManagerDriverSelect();
+                // No need for await here, as we already have the loading message in the select, 
+                // and we want the rest of the dashboard to render immediately.
+                populateManagerDriverSelect(); 
             } catch (e) {
                 console.error("Failed to populate manager driver select, continuing render.", e);
             }
@@ -1060,6 +1062,7 @@
 
     // --- API HANDLERS ---
     // ✅ CRITICAL FIX 3 APPLIED: Added try/catch around data fetching after login
+    // ✅ CRITICAL FIX 1 APPLIED: Sends 'role' to prevent mismatch error
     async function handleLoginSubmit(event) {
         event.preventDefault();
         const username = event.target.username.value;
@@ -1483,32 +1486,35 @@
         }
     }
 
-    // UPDATED: populateManagerDriverSelect (Fixed Request 1)
+    // ✅ CRITICAL FIX 4 APPLIED: Made this function more robust and safer against errors.
     async function populateManagerDriverSelect() {
-        try {
-            const select = document.getElementById('driverSelect');
-            if (!select) return;
+        const select = document.getElementById('driverSelect');
+        if (!select) return; // Exit gracefully if the element is not there (e.g., owner dashboard)
 
+        try {
             let drivers = [];
+            
             if (user.role === 'manager') {
-                // Use the new endpoint for fetching manager's drivers
-                drivers = await fetchManagerDrivers();
+                // Fetch drivers assigned to the current manager
+                drivers = await fetchManagerDrivers(); 
             } else if (user.role === 'owner') {
                 if (!allUsers || allUsers.length === 0) await fetchAllUsersAndManagers();
                 drivers = (allUsers || []).filter(u => u.role === 'driver');
             }
 
-            // Option for self (manager themselves)
+            // Option for self (manager/driver themselves)
             const youOption = `<option value="${user._id}">${user.fullName || user.username} (You as Driver)</option>`;
             
-            const driversHtml = drivers.map(d => `<option value="${d._id}">${d.fullName} (${d.username})</option>`).join('');
+            const driversHtml = (drivers || [])
+                .filter(d => d._id !== user._id) // Remove self if accidentally included
+                .map(d => `<option value="${d._id}">${d.fullName} (${d.username})</option>`).join('');
 
             select.innerHTML = youOption + driversHtml;
 
         } catch (err) {
-            console.error('populateManagerDriverSelect', err);
-            const select = document.getElementById('driverSelect');
-            if (select) select.innerHTML = '<option value="">-- Error Loading Drivers --</option>';
+            console.error('populateManagerDriverSelect failed to load drivers:', err);
+            // Fallback: Ensure the select dropdown has a default state if loading fails
+            select.innerHTML = '<option value="">-- Error Loading Drivers, Select Manually --</option>';
         }
     }
 
