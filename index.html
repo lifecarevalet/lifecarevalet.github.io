@@ -96,6 +96,7 @@
             <p id="popup-customer" class="text-gray-700"></p>
             <p id="popup-point" class="text-gray-500"></p>
             <p id="popup-driver" class="text-gray-500"></p>
+            <p id="popup-lane" class="text-gray-500 font-semibold"></p>
         </div>
 
         <div class="mt-6 pt-4 border-t border-gray-200">
@@ -107,6 +108,33 @@
         <button id="token-popup-close" class="w-full mt-6 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 font-semibold">OK</button>
     </div>
 </div>
+
+<div id="token-edit-modal" class="modal-backdrop hidden">
+    <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm animate-fadeIn">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Edit Parking Details</h2>
+        <form id="token-edit-form" class="space-y-4">
+            <input type="hidden" id="token-edit-id"> 
+            
+            <div class="mb-3">
+                <p class="text-sm font-semibold text-gray-700">Token Number: <span id="token-display-number" class="font-mono text-lg text-green-700"></span></p>
+                <p class="text-sm text-gray-600">Car: <span id="token-display-car" class="font-semibold"></span></p>
+            </div>
+
+            <div>
+                <label for="token-edit-lane-number" class="block text-sm font-medium text-gray-700">Lane No. / Parking Spot (Optional)</label>
+                <input type="text" id="token-edit-lane-number" placeholder="e.g., A5, Basement 2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+
+            <p id="token-edit-message" class="text-sm pt-3 text-center"></p>
+
+            <div class="flex justify-end space-x-3 pt-4">
+                <button type="button" onclick="closeTokenEditModal()" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 font-semibold">Cancel</button>
+                <button type="submit" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 font-semibold">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 
 <div id="custom-modal-backdrop" class="modal-backdrop hidden">
     <div id="custom-alert-modal" class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm hidden animate-fadeIn">
@@ -160,7 +188,7 @@
         };
     }
 
-    // New utility function for password input with toggle (Request 7 & 8)
+    // New utility function for password input with toggle (Old Request 7 & 8)
     function togglePasswordVisibility(id, button) {
         const input = document.getElementById(id);
         const iconContainer = button.querySelector('svg');
@@ -243,9 +271,28 @@
     }
     // END Custom Modal Handlers
 
-    // Sidebar Handlers (Request 5: Removed close button and simplified title)
+    // New Modal Handlers for Token Edit (Request 4)
+    function closeTokenEditModal() {
+        document.getElementById('token-edit-modal').classList.add('hidden');
+        document.getElementById('token-edit-message').textContent = '';
+    }
 
-    // Helper to get location details (Used to be for Request 3/4 but now only needed for token logic)
+    async function showTokenEditModal(tokenId) {
+        const token = currentTokens.find(t => t._id === tokenId);
+        if (!token) return showCustomAlert('Token not found or is no longer active.', 'Error', 'error');
+
+        document.getElementById('token-edit-id').value = tokenId;
+        document.getElementById('token-display-number').textContent = token.tokenNumber;
+        document.getElementById('token-display-car').textContent = token.carNumber;
+        document.getElementById('token-edit-lane-number').value = token.laneNumber || '';
+
+        document.getElementById('token-edit-modal').classList.remove('hidden');
+    }
+
+
+    // Sidebar Handlers (Old Request 5: Backdrop close)
+
+    // Helper to get location details
     function getUserPointDetails() {
         if (!user || !user.pointId) return { name: 'Not Assigned', address: 'N/A' };
         
@@ -263,7 +310,7 @@
         return { _id: pointIdString, name: 'Loading...', address: 'Loading...' }; 
     }
 
-    // Updated renderSidebarUserInfo (Request 4: Simplified)
+    // Updated renderSidebarUserInfo (Old Request 4)
     function renderSidebarUserInfo() {
         return `
             <p class="font-semibold text-gray-800">${user.fullName || user.username}</p>
@@ -291,14 +338,15 @@
         }
     }
 
+    // MODIFIED: renderSidebarMenu (Request 2: Removed Dashboard link)
     function renderSidebarMenu() {
         const isOwner = user.role === 'owner';
         const isManager = user.role === 'manager';
-        const isDriver = user.role === 'driver'; // Request 3
+        // const isDriver = user.role === 'driver'; // Driver only has Logout
 
         let links = [];
 
-        links.push({ text: 'Dashboard', handler: 'renderDashboard()' });
+        // Dashboard link removed as per Request 2. Navigation is expected via 'Back to Dashboard' buttons.
 
         if (isOwner) {
             links.push({ text: 'Manage Users (M & D)', handler: 'renderUserList()' });
@@ -308,9 +356,8 @@
         } else if (isManager) {
             links.push({ text: 'Add Driver', handler: 'renderUserManagement(\'driver\')' });
             links.push({ text: 'Edit/Delete Drivers', handler: 'renderManagerDriverList()' });
-        } else if (isDriver) {
-             // Driver only needs Dashboard/Logout (Dashboard already added)
-        }
+        } 
+        // Driver only needs Dashboard/Logout (Dashboard is the main view)
 
         return links.map(link => `
             <a href="#" onclick="toggleSidebar(false); ${link.handler}; event.preventDefault();" 
@@ -344,8 +391,9 @@
     function showTokenPopup(data) {
         document.getElementById('popup-token').textContent = data.tokenNumber || '—';
         document.getElementById('popup-customer').textContent = `Customer: ${data.customerName || 'N/A'}`;
-        document.getElementById('popup-driver').textContent = `Driver: ${data.driverName || 'N/A'}`;
+        document.getElementById('popup-driver').textContent = data.driverName ? `Driver: ${data.driverName}` : '';
         document.getElementById('popup-point').textContent = data.pointName ? `Location: ${data.pointName}` : '';
+        document.getElementById('popup-lane').textContent = data.laneNumber ? `Lane No: ${data.laneNumber}` : ''; // Request 3
         document.getElementById('token-popup').classList.remove('hidden');
     }
 
@@ -355,8 +403,8 @@
 
     document.getElementById('token-popup-close').addEventListener('click', hideTokenPopup);
     document.getElementById('token-popup-close-icon').addEventListener('click', hideTokenPopup);
-    document.getElementById('edit-user-form').addEventListener('submit', handleEditUserSubmit); // Request 6: Attach submit handler
-    document.getElementById('sidebar-backdrop').addEventListener('click', () => toggleSidebar(false)); // Request 5: Backdrop close
+    document.getElementById('edit-user-form').addEventListener('submit', handleEditUserSubmit); // Old Request 6: Attach submit handler
+    document.getElementById('sidebar-backdrop').addEventListener('click', () => toggleSidebar(false)); // Old Request 5: Backdrop close
 
     function formatDateIso(dateStr) {
         if (!dateStr) return '—';
@@ -519,7 +567,7 @@
         container.insertAdjacentHTML('beforeend', renderUserTable(managerDrivers));
     }
 
-    // FIX 2 & 8: renderUserManagement
+    // MODIFIED: renderUserManagement (Request 5: Hide location field)
     async function renderUserManagement(role) {
         if (user.role === 'owner') {
             await fetchPoints();
@@ -581,7 +629,7 @@
                                 </div>
                                 <div id="owner-point-container">
                                     <label id="owner-point-label" class="block text-sm font-medium text-gray-700">Assign Location (Point)</label>
-                                    <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 disabled:bg-gray-200" disabled>
+                                    <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                                         <option value="">-- Select Manager First --</option>
                                         ${currentPoints.map(p => `<option value="${p._id}">${p.name}</option>`).join('')}
                                     </select>
@@ -621,10 +669,11 @@
         document.getElementById('menu-toggle-btn').addEventListener('click', () => toggleSidebar(true));
         document.getElementById('create-user-form').addEventListener('submit', handleCreateUserSubmit);
         
-        // Request 2 Logic: Auto-assign Location based on Manager selection (Owner creating Driver)
+        // Request 5 Logic: Auto-assign Location based on Manager selection (Owner creating Driver)
         if (isDriverCreationByOwner) {
             const managerSelect = document.getElementById('managerId');
             const pointSelect = document.getElementById('pointId');
+            const pointContainer = document.getElementById('owner-point-container');
             const pointLabel = document.getElementById('owner-point-label');
 
             const updatePointBasedOnManager = () => {
@@ -633,18 +682,18 @@
 
                 if (managerPointId) {
                     pointSelect.value = managerPointId;
-                    pointSelect.disabled = true;
-                    pointLabel.textContent = 'Assign Location (Auto-assigned from Manager)';
-                    pointSelect.classList.add('bg-gray-200');
+                    pointContainer.classList.add('hidden'); // Request 5: Hide the container
                 } else if (managerSelect.value) {
+                    pointContainer.classList.remove('hidden'); // Show if manager selected but no point assigned
                     pointSelect.value = '';
                     pointSelect.disabled = true;
                     pointLabel.textContent = 'Assign Location (Selected Manager has no assigned Location)';
                     pointSelect.classList.remove('bg-gray-200');
                 } else {
+                    pointContainer.classList.remove('hidden'); // Show if no manager is selected
                     pointSelect.value = '';
-                    pointSelect.disabled = true;
-                    pointLabel.textContent = 'Assign Location (Select Manager First)';
+                    pointSelect.disabled = false;
+                    pointLabel.textContent = 'Assign Location (Point)';
                     pointSelect.classList.remove('bg-gray-200');
                 }
             };
@@ -662,8 +711,7 @@
 
         const rows = users.map(u => {
             const userId = u._id;
-            const userRole = u.role;
-            const isSelf = user._id === userId; // Don't let users delete themselves
+            const isSelf = user._id === userId; 
             
             return `
             <tr class="border-b hover:bg-gray-50">
@@ -746,7 +794,6 @@
 
     // New renderPointList (Admin function)
     async function renderPointList() {
-        // ... (implementation remains the same)
         appRoot.innerHTML = `
             <div class="min-h-screen bg-gray-50 pb-20">
                 <header class="fixed-header bg-green-700 text-white p-4 shadow-lg flex justify-between items-center">
@@ -803,7 +850,6 @@
     }
 
     function renderPointTable(points) {
-        // ... (implementation remains the same)
         if (!points || points.length === 0) {
             return '<p class="text-center text-gray-500 p-4">No locations defined.</p>';
         }
@@ -838,7 +884,7 @@
         `;
     }
 
-    // MODIFIED: renderDashboard (Request 3: Sidebar for Driver)
+    // MODIFIED: renderDashboard (Request 3: Added Lane No. field)
     function renderDashboard() {
         if (!user) return renderUnifiedLogin();
 
@@ -857,7 +903,7 @@
                         ` : '<div class="w-6 h-6 mr-3"></div>'}
                         <h1 class="text-lg font-semibold">Life Care Valet Parking</h1>
                     </div>
-                    <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Logout</button>
+                    <button id="logout-button" onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">Logout</button>
                 </header>
 
                 <main class="pt-20 p-4">
@@ -873,6 +919,13 @@
                                     <label class="block text-sm font-medium text-gray-700">Customer Name (Optional)</label>
                                     <input type="text" id="customerName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., Rahul Sharma">
                                 </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Lane No. / Parking Spot (Optional)</label>
+                                    <input type="text" id="laneNumber" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="e.g., A5, Basement 2">
+                                </div>
+
+
                                 ${isManager ? `
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700">Select Driver (or choose yourself)</label>
@@ -905,16 +958,12 @@
             </div>
         `;
 
-        document.getElementById('logout-button').addEventListener('click', handleLogout);
+        // document.getElementById('logout-button').addEventListener('click', handleLogout); // Already done via inline onclick
 
-        if (isOwner || isManager || isDriver) { // Request 3: Added Driver
+        if (isOwner || isManager || isDriver) { 
             document.getElementById('menu-toggle-btn').addEventListener('click', () => toggleSidebar(true));
         }
 
-
-        if (isManager) {
-            populateManagerDriverSelect();
-        }
 
         if (isDriver || isManager) {
             document.getElementById('car-in-form').addEventListener('submit', handleCarInSubmit);
@@ -927,10 +976,13 @@
             attachCarOutHandlers(); 
         });
 
+        // Request 1 Fix: Ensure drivers are populated after data fetch for managers
         fetchTokens();
         if (isOwner || isManager) {
             fetchPoints();
-            fetchAllUsersAndManagers();
+            fetchAllUsersAndManagers().then(() => { 
+                if (isManager) populateManagerDriverSelect();
+            });
         }
     }
 
@@ -945,6 +997,7 @@
             const tokenNumber = String(token.tokenNumber || '').toLowerCase();
             const carNumber = String(token.carNumber || '').toLowerCase();
             const customerName = String(token.customerName || '').toLowerCase();
+            const laneNumber = String(token.laneNumber || '').toLowerCase(); // Request 3: Search by Lane No.
 
             let driverName = '';
             if (token.driverId && typeof token.driverId === 'object') {
@@ -953,19 +1006,21 @@
                  driverName = String(token.driverId).toLowerCase(); 
             }
 
+            // Check if any field contains the query
+            const matchesQuery = tokenNumber.includes(query) || 
+                               carNumber.includes(query) || 
+                               customerName.includes(query) ||
+                               laneNumber.includes(query); 
+            
             if (isDriverView) {
-                return tokenNumber.includes(query) || 
-                       carNumber.includes(query) || 
-                       customerName.includes(query);
+                return matchesQuery;
             }
 
-            return tokenNumber.includes(query) || 
-                   carNumber.includes(query) || 
-                   customerName.includes(query) || 
-                   driverName.includes(query);
+            return matchesQuery || driverName.includes(query);
         });
     }
 
+    // MODIFIED: renderTokenList (Request 4: Token details clickable)
     function renderTokenList() {
         const tokens = filterTokens(); 
         if (!tokens || tokens.length === 0) {
@@ -977,15 +1032,16 @@
         return tokens.map(token => {
             const inTime = token.inTime ? new Date(token.inTime).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '';
             const driverName = token.driverId && typeof token.driverId === 'object' ? (token.driverId.fullName || token.driverId.username) : (token.driverName || (token.driverId || 'N/A'));
+            const laneInfo = token.laneNumber ? `<span class="font-bold text-indigo-700"> / Lane: ${token.laneNumber}</span>` : ''; // Request 3
 
             return `
                 <div class="bg-gray-50 p-3 border-l-4 border-green-500 rounded-md shadow-sm flex justify-between items-center">
-                    <div>
+                    <div onclick="showTokenEditModal('${token._id}')" class="flex-grow cursor-pointer p-1 -m-1 hover:bg-gray-100 rounded"> 
                         <p class="text-lg font-bold text-gray-800">${token.carNumber}</p>
                         <p class="text-xs text-gray-500">Token: <span class="font-mono">${token.tokenNumber}</span> | Time: ${inTime}</p>
-                        <p class="text-sm text-gray-600">Cust: ${token.customerName || 'N/A'} | Driver: ${driverName}</p>
+                        <p class="text-sm text-gray-600">Cust: ${token.customerName || 'N/A'} | Driver: ${driverName} ${laneInfo}</p>
                     </div>
-                    <button data-token-id="${token._id}" class="car-out-btn bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm whitespace-nowrap">Car OUT</button>
+                    <button data-token-id="${token._id}" class="car-out-btn bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm whitespace-nowrap ml-3">Car OUT</button>
                 </div>
             `;
         }).join('');
@@ -995,7 +1051,6 @@
     async function handleLoginSubmit(event) {
         event.preventDefault(); 
         const username = event.target.username.value;
-        // Password value is read directly from the input element
         const password = document.getElementById('password').value; 
         const errorMessage = document.getElementById('error-message');
         errorMessage.textContent = 'Logging in...';
@@ -1019,9 +1074,10 @@
                 user = { ...data };
                 localStorage.setItem('user', JSON.stringify(user));
 
+                // Wait for all essential data before rendering dashboard
                 await fetchTokens();
                 if (!currentPoints.length) await fetchPoints();
-                await fetchAllUsersAndManagers();
+                await fetchAllUsersAndManagers(); 
 
                 renderDashboard();
             } else {
@@ -1034,8 +1090,8 @@
         }
     }
 
+
     async function handlePointCreateSubmit(event) {
-        // ... (implementation remains the same)
         event.preventDefault();
         const messageElement = document.getElementById('point-create-message');
         messageElement.textContent = 'Creating Location...';
@@ -1091,10 +1147,9 @@
         
         const payload = {
             username: form.username.value,
-            password: document.getElementById('password').value, // Request 8: Get value correctly
+            password: document.getElementById('password').value, 
             fullName: form.fullName.value,
             role: role,
-            // PointId: Use value from the form (even if it's disabled by Request 2 logic)
             pointId: form.pointId ? form.pointId.value : undefined, 
             managerId: managerId
         };
@@ -1156,7 +1211,6 @@
     }
 
     async function handlePointDelete(pointId, pointName) {
-        // ... (implementation remains the same)
         showCustomConfirm(`Are you sure you want to permanently delete the location: ${pointName}? This cannot be undone. All associated users will be unassigned.`, async () => {
             try {
                 const res = await fetch(`${API_BASE_URL}/api/points/admin/delete/${pointId}`, {
@@ -1180,7 +1234,6 @@
         }, 'Delete Location Confirmation', 'Delete Permanently');
     }
 
-    // New/Re-implemented handleUserEdit (Request 6: Edit functionality)
     async function handleUserEdit(userId) {
         await fetchPoints();
         await fetchAllUsersAndManagers();
@@ -1198,7 +1251,7 @@
         // 2. Populate Full Name
         document.getElementById('edit-full-name').value = userToEdit.fullName;
 
-        // 3. Add Password field (Request 6 modification)
+        // 3. Add Password field (Old Request 6 modification)
         const form = document.getElementById('edit-user-form');
         form.querySelector('p#edit-message').insertAdjacentHTML('beforebegin', `
             <div id="edit-password-div">
@@ -1236,7 +1289,6 @@
         document.getElementById('edit-modal').classList.remove('hidden');
     }
 
-    // New/Re-implemented handleEditUserSubmit (Request 6: Edit functionality)
     async function handleEditUserSubmit(event) {
         event.preventDefault();
         const form = event.target;
@@ -1274,7 +1326,6 @@
                 // Update local user object if self-edit
                 if (user._id === userId) {
                     const updatedUser = { ...user, ...payload };
-                    // If password was changed, we don't update local state with password, but we update other fields.
                     if (payload.password) delete updatedUser.password; 
                     user = updatedUser;
                     localStorage.setItem('user', JSON.stringify(user));
@@ -1297,6 +1348,45 @@
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
+    
+    // New API Handler for Token Edit (Request 4)
+    async function handleTokenEditSubmit(event) {
+        event.preventDefault();
+        const tokenId = document.getElementById('token-edit-id').value;
+        const newLaneNumber = document.getElementById('token-edit-lane-number').value.trim() || null;
+        const messageElement = document.getElementById('token-edit-message');
+        
+        messageElement.className = 'text-gray-500 text-sm pt-3 text-center';
+        messageElement.textContent = 'Saving changes...';
+
+        try {
+            // Assuming backend supports a simple PUT/PATCH for updating token details
+            const res = await fetch(`${API_BASE_URL}/api/tokens/update/${tokenId}`, { 
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ laneNumber: newLaneNumber }) 
+            });
+
+            if (res.ok) {
+                messageElement.className = 'text-green-600 text-sm pt-3 text-center font-bold';
+                messageElement.textContent = 'Parking details updated successfully!';
+                
+                // Update local state and re-render the list
+                await fetchTokens(); 
+                
+                setTimeout(closeTokenEditModal, 1000); 
+
+            } else {
+                const err = await res.json();
+                messageElement.className = 'text-red-500 text-sm pt-3 text-center';
+                messageElement.textContent = err.message || 'Failed to update parking details.';
+            }
+        } catch (err) {
+            console.error('Update Token error', err);
+            messageElement.className = 'text-red-500 text-sm pt-3 text-center';
+            messageElement.textContent = 'Network error: Could not connect to server.';
+        }
+    }
 
 
     async function populateManagerDriverSelect() {
@@ -1304,9 +1394,16 @@
             if (!allUsers || allUsers.length === 0) await fetchAllUsersAndManagers();
             const select = document.getElementById('driverSelect');
             if (!select) return;
-            const youOption = select.querySelector('option') ? select.querySelector('option').outerHTML : `<option value="${user._id}">${user.fullName || user.username} (You as Driver)</option>`;
+
+            // Option for self
+            const youOption = `<option value="${user._id}">${user.fullName || user.username} (You as Driver)</option>`;
+            
             // Filter drivers managed by the current manager
-            const drivers = (allUsers || []).filter(u => u.role === 'driver' && ((u.managerId && ((typeof u.managerId === 'object' && u.managerId._id === user._id) || u.managerId === user._id))));
+            const drivers = (allUsers || []).filter(u => u.role === 'driver' && (
+                (u.managerId && typeof u.managerId === 'object' && u.managerId._id === user._id) || 
+                u.managerId === user._id)
+            );
+            
             const driversHtml = drivers.map(d => `<option value="${d._id}">${d.fullName} (${d.username})</option>`).join('');
             select.innerHTML = youOption + driversHtml;
         } catch (err) {
@@ -1314,11 +1411,12 @@
         }
     }
 
-    // FIX 1: handleCarInSubmit (Token Generation Fix for Manager)
+    // MODIFIED: handleCarInSubmit (Request 1 Fix & Request 3: Added Lane No.)
     async function handleCarInSubmit(event) {
         event.preventDefault(); 
         const carNumber = event.target.carNumber.value.trim().toUpperCase();
         const customerName = event.target.customerName.value.trim() || 'N/A';
+        const laneNumber = event.target.laneNumber.value.trim() || null; // Request 3
         const inMessage = document.getElementById('in-message');
 
         if (!carNumber) {
@@ -1327,7 +1425,6 @@
             return;
         }
 
-        // --- Core Fix Logic ---
         const pointDetails = getUserPointDetails();
         const assignedPointId = pointDetails._id || (user.pointId && typeof user.pointId !== 'object' ? user.pointId : null);
 
@@ -1347,13 +1444,12 @@
         } else if (user.role === 'driver') {
             selectedDriverId = user._id; 
         }
-        // --- End Core Fix Logic ---
 
         inMessage.className = 'text-gray-500 text-sm mt-2 text-center';
         inMessage.textContent = 'Generating Token...';
 
         try {
-            const payload = { carNumber, customerName, selectedDriverId, pointId: assignedPointId }; 
+            const payload = { carNumber, customerName, selectedDriverId, pointId: assignedPointId, laneNumber }; // Request 3
             const res = await fetch(`${API_BASE_URL}/api/tokens/in`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
@@ -1373,7 +1469,8 @@
                     tokenNumber: tokenObj.tokenNumber,
                     customerName,
                     driverName: popupDriverName,
-                    pointName: popupPointName
+                    pointName: popupPointName,
+                    laneNumber: tokenObj.laneNumber // Request 3
                 });
 
                 tokenSearchQuery = ''; 
@@ -1454,6 +1551,14 @@
         isSplash = false;
         renderApp();
     }, 800);
+
+    // Attach listener for the new token edit modal form (Request 4)
+    document.addEventListener('DOMContentLoaded', () => {
+        const tokenEditForm = document.getElementById('token-edit-form');
+        if (tokenEditForm) {
+            tokenEditForm.addEventListener('submit', handleTokenEditSubmit);
+        }
+    });
 
 </script>
 </body>
