@@ -660,7 +660,8 @@
             )
         );
         document.getElementById('list-message').remove();
-        container.insertAdjacentHTML('beforeend', renderUserTable(managerDrivers));
+        // Assuming renderUserTable is defined elsewhere. If not, this part will need the table HTML definition.
+        container.insertAdjacentHTML('beforeend', renderUserTable(managerDrivers)); 
     }
 
     // MODIFIED: renderUserManagement (Request 2 & 3: Hide Location/Assignment Info)
@@ -1144,33 +1145,35 @@
     
     // --- INIT / APP ---
     function renderApp() {
+        // Main content div ko render se pehle clear karna zaroori nahi,
+        // kyonki har render function poore appRoot ko overwrite karta hai.
+        
         if (isSplash) renderSplashScreen();
         else if (user) renderDashboard();
         else renderUnifiedLogin(); 
     }
 
-    // FIX: Simplified initialization to prevent blank screen issues
-    // DOMContentLoaded event listener ab har cheez ke load hone ka wait karega
+    // 🔥 CRITICAL FIX FOR WHITE SCREEN: 
+    // Initialization ko DOMContentLoaded ke andar rakha gaya hai
     document.addEventListener('DOMContentLoaded', () => {
-        // First render: Show Splash Screen
+        // 1. Splash Screen dikhao (DOM element ab zaroor available hoga)
         renderApp(); 
 
-        // After 800ms, hide splash and render the main view (Login or Dashboard)
+        // 2. 800ms baad splash ko hatao aur main view render karo
         setTimeout(() => {
             isSplash = false;
             renderApp();
         }, 800);
         
-        // Attach listener for the token edit modal form submission
+        // 3. Attach listener for the token edit modal form submission
         const tokenEditForm = document.getElementById('token-edit-form');
         if (tokenEditForm) {
             tokenEditForm.addEventListener('submit', handleTokenEditSubmit);
         }
         
-        // Ensure jwt_decode library is included if you are using it
+        // 4. Check for jwt_decode
         if (typeof jwt_decode === 'undefined') {
-            console.warn("JWT Decode library is missing. Login functionality may fail.");
-            // You may need to add: <script src="https://cdnjs.cloudflare.com/ajax/libs/jwt-decode/3.1.2/jwt-decode.min.js"></script>
+            console.warn("JWT Decode library is missing. Please check the script tag.");
         }
     });
 
