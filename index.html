@@ -1059,6 +1059,7 @@
     }
 
     // --- API HANDLERS ---
+    // ✅ CRITICAL FIX 3 APPLIED: Added try/catch around data fetching after login
     async function handleLoginSubmit(event) {
         event.preventDefault();
         const username = event.target.username.value;
@@ -1066,7 +1067,7 @@
         const errorMessage = document.getElementById('error-message');
         errorMessage.textContent = 'Logging in...';
 
-        // ✅ FIX: Sending 'role' to prevent "Role mismatch" error
+        // FIX: Sending 'role' to prevent "Role mismatch" error
         const payload = { username, password, role: currentLoginRole }; 
 
         try {
@@ -1088,11 +1089,21 @@
                 user = { ...data };
                 localStorage.setItem('user', JSON.stringify(user));
 
-                // 🚀 Ensures all necessary data is fetched once, before rendering.
-                await fetchTokens();
-                if (!currentPoints.length) await fetchPoints();
-                await fetchAllUsersAndManagers();
-                
+                // 🚀 CRITICAL FIX 3: Ensures all data fetching is handled in a try/catch block.
+                try {
+                    await fetchTokens();
+                    if (!currentPoints.length) await fetchPoints();
+                    
+                    // fetchAllUsersAndManagers is generally only needed for Owner/Manager 
+                    // and might fail for driver if endpoint is restricted.
+                    if (user.role === 'owner' || user.role === 'manager') {
+                        await fetchAllUsersAndManagers();
+                    }
+                } catch (dataFetchError) {
+                    console.warn("Initial data fetching failed, proceeding to render dashboard.", dataFetchError);
+                    // We continue even if fetching fails.
+                }
+
                 renderDashboard(); // Should now execute successfully
 
             } else {
