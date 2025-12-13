@@ -403,7 +403,7 @@
     async function fetchTokens() {
         try {
             const res = await fetch(`${API_BASE_URL}/api/tokens/data`, { headers: getAuthHeaders() });
-            // 🐛 FIX: 'new new Error' was changed to 'new Error' to prevent silent crash after successful login
+            // ✅ FIX: 'new new Error' was changed to 'new Error' to prevent silent crash after successful login
             if (!res.ok) throw new Error('Failed to fetch tokens'); 
             currentTokens = await res.json();
             if (document.getElementById('active-tokens-list')) {
@@ -876,7 +876,7 @@
         `;
     }
 
-    // UPDATED: renderDashboard (Fixed Request 1: Manager token generation)
+    // UPDATED: renderDashboard (Contains Critical Fix 2: Removed redundant awaits)
     async function renderDashboard() {
         if (!user) return renderUnifiedLogin();
 
@@ -884,13 +884,9 @@
         const isManager = user.role === 'manager';
         const isDriver = user.role === 'driver';
 
-        // Fetch data first
-        await fetchTokens();
-        if (isOwner || isManager) {
-            await fetchPoints();
-            await fetchAllUsersAndManagers();
-        }
-
+        // NOTE: Data (tokens, points, users) is now assumed to be fresh from handleLoginSubmit, 
+        // No need to re-fetch here, simplifying the rendering flow.
+        
         const pointDetails = getUserPointDetails();
 
         appRoot.innerHTML = `
@@ -960,7 +956,7 @@
                         <div class="mb-4">
                             <input type="text" id="token-search" placeholder="Search by Token, Car, ${isDriver ? '' : 'Driver, '} or Customer name..." class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" value="${tokenSearchQuery}">
                         </div>
-                        <p id="token-list-message" class="text-gray-500 text-sm mb-4">Fetching data...</p>
+                        <p id="token-list-message" class="text-gray-500 text-sm mb-4">Live data fetched.</p>
                         <div id="active-tokens-list" class="space-y-3">
                             ${renderTokenList()}
                         </div>
@@ -983,11 +979,18 @@
             attachCarOutHandlers();
         });
 
-        // Request 1 Fix: Populate manager's driver dropdown
+        // Request 1 Fix: Populate manager's driver dropdown - Wrapped in try/catch to prevent hang
         if (isManager) {
-            await populateManagerDriverSelect();
+            try {
+                await populateManagerDriverSelect();
+            } catch (e) {
+                console.error("Failed to populate manager driver select, continuing render.", e);
+            }
         }
+        
+        attachCarOutHandlers();
     }
+
 
     function filterTokens() {
         const query = tokenSearchQuery.toLowerCase();
@@ -1085,7 +1088,7 @@
                 user = { ...data };
                 localStorage.setItem('user', JSON.stringify(user));
 
-                // 🚀 FIX: The following calls are now safe with the corrected fetchTokens
+                // 🚀 Ensures all necessary data is fetched once, before rendering.
                 await fetchTokens();
                 if (!currentPoints.length) await fetchPoints();
                 await fetchAllUsersAndManagers();
