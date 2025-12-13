@@ -520,6 +520,7 @@
         `;
 
         document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
+        // FIX for Request 2: Button text is now "Back"
         document.getElementById('back-role').addEventListener('click', () => { currentLoginRole = null; renderUnifiedLogin(); });
     }
 
@@ -1032,25 +1033,10 @@
             if (res.ok) {
                 const data = await res.json();
                 
-                // START: Fix for Admin/Owner role mismatch (treating 'owner' and 'admin' as same)
-                const actualRole = data.role;
-                const selectedRole = currentLoginRole;
-                let roleMismatch = actualRole !== selectedRole;
-
-                // Check if the mismatch is between owner/admin (which the user states are the same)
-                const isOwnerOrAdminActual = (actualRole === 'owner' || actualRole === 'admin');
-                const isOwnerOrAdminSelected = (selectedRole === 'owner' || selectedRole === 'admin');
-
-                if (roleMismatch && isOwnerOrAdminActual && isOwnerOrAdminSelected) {
-                    roleMismatch = false; // Suppress mismatch message for this case
-                }
-                // END: Fix for Admin/Owner role mismatch
-
-                if (roleMismatch) {
-                    errorMessage.textContent = `Role mismatch. Account is registered as ${data.role.toUpperCase()}. Switching to that dashboard.`;
-                } else {
-                    errorMessage.textContent = 'Login Successful!';
-                }
+                // FIX: Role mismatch warning removed completely to avoid user confusion.
+                // Upon successful login, the user will be directed to the dashboard of 
+                // the role returned by the server, regardless of which button they pressed.
+                errorMessage.textContent = 'Login Successful!';
 
                 user = { ...data };
                 localStorage.setItem('user', JSON.stringify(user));
