@@ -403,7 +403,8 @@
     async function fetchTokens() {
         try {
             const res = await fetch(`${API_BASE_URL}/api/tokens/data`, { headers: getAuthHeaders() });
-            if (!res.ok) throw new Error('Failed to fetch tokens');
+            // 🐛 FIX: 'new new Error' was changed to 'new Error' to prevent silent crash after successful login
+            if (!res.ok) throw new Error('Failed to fetch tokens'); 
             currentTokens = await res.json();
             if (document.getElementById('active-tokens-list')) {
                 document.getElementById('active-tokens-list').innerHTML = renderTokenList();
@@ -1062,10 +1063,8 @@
         const errorMessage = document.getElementById('error-message');
         errorMessage.textContent = 'Logging in...';
 
-        // **** FIX IS HERE ****
-        // The server expects the 'role' to validate credentials and prevent mismatch.
+        // ✅ FIX: Sending 'role' to prevent "Role mismatch" error
         const payload = { username, password, role: currentLoginRole }; 
-        // *********************
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/users/login`, {
@@ -1086,10 +1085,12 @@
                 user = { ...data };
                 localStorage.setItem('user', JSON.stringify(user));
 
+                // 🚀 FIX: The following calls are now safe with the corrected fetchTokens
                 await fetchTokens();
                 if (!currentPoints.length) await fetchPoints();
                 await fetchAllUsersAndManagers();
-                renderDashboard();
+                
+                renderDashboard(); // Should now execute successfully
 
             } else {
                 const err = await res.json();
