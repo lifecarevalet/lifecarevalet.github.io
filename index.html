@@ -57,7 +57,7 @@
 
     // Utility function to make API calls
     async function apiCall(endpoint, method = 'GET', data = null) {
-        const url = `${API_BASE_URL}/${endpoint}`;
+    const url = `${API_BASE_URL}/api/${endpoint}`;
         const headers = {
             'Content-Type': 'application/json',
             ...(user && user.token && { 'Authorization': `Bearer ${user.token}` })
