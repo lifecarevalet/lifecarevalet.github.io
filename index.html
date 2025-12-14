@@ -41,7 +41,9 @@
         </div>
 
 <script>
-    const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app/'; // Replace with your actual API base URL
+    // --- API BASE URL ---
+    // API URL set to the provided backend link.
+    const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app/'; 
 
     // --- STATE ---
     let appRoot = document.getElementById('app-root');
@@ -57,7 +59,10 @@
 
     // Utility function to make API calls
     async function apiCall(endpoint, method = 'GET', data = null) {
-    const url = `${API_BASE_URL}/api/${endpoint}`;
+        // CORRECTED FIX: Removed the unnecessary '/api/' prefix.
+        // URL will now be: https://lifecarevaletbackend-production.up.railway.app/users/login (as per your backend structure)
+        const url = `${API_BASE_URL}${endpoint}`; 
+        
         const headers = {
             'Content-Type': 'application/json',
             ...(user && user.token && { 'Authorization': `Bearer ${user.token}` })
@@ -76,8 +81,15 @@
                 return;
             }
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `API call failed with status: ${response.status}`);
+                // Check if the response is trying to send HTML (the JSON error cause)
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `API call failed with status: ${response.status}`);
+                } else {
+                    // This handles the HTML error page response that caused the JSON error
+                    throw new Error(`Server error: Could not connect to API endpoint at ${url}. Status: ${response.status}`);
+                }
             }
             return response.json();
         } catch (error) {
@@ -128,6 +140,7 @@
     }
 
     function renderSidebarMenu() {
+        // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
         const isAdmin = user.role === 'admin'; 
         const isManager = user.role === 'manager';
         let links = [];
@@ -203,6 +216,7 @@
     async function fetchAllUsersAndManagers() {
         try {
             const data = await apiCall('users/all');
+            // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
             allUsers = data.users.filter(u => u.role !== 'admin'); // Filter out self (Admin)
             currentManagers = data.users.filter(u => u.role === 'manager');
         } catch (error) {
@@ -266,6 +280,7 @@
 
     function renderLoginPopup(role) {
         currentLoginRole = role; // Set the current login attempt role
+        // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
         const color = role === 'admin' ? 'blue' : (role === 'manager' ? 'yellow' : 'green');
         const roleTitle = role === 'admin' ? 'ADMIN' : role.toUpperCase();
         
@@ -297,6 +312,7 @@
 
     function renderUserManagement(role, userData = null) {
         const roleTitle = role.charAt(0).toUpperCase() + role.slice(1);
+        // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
         const isAdmin = user.role === 'admin';
         const isManager = user.role === 'manager';
         const managersForSelect = currentManagers; 
@@ -346,7 +362,7 @@
                                     </div>
                                 ` : ''}
 
-                                ${(isAdmin || (isManager && role === 'manager')) ? `
+                                ${((isAdmin && role === 'manager') || (isManager && role === 'manager')) ? `
                                     <div class="mb-4" id="admin-point-container">
                                         <label for="pointId" class="block text-sm font-medium text-gray-700" id="admin-point-label">Assign Location (Point)</label>
                                         <select id="pointId" name="pointId" required class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm">
@@ -552,6 +568,7 @@
         
         const container = document.getElementById('user-list-container');
         try {
+            // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
             const usersToShow = allUsers.filter(u => u.role !== 'admin');
             if (usersToShow.length > 0) {
                  document.getElementById('list-message')?.remove();
@@ -814,6 +831,7 @@
     function renderDashboard() {
         if (!user) return renderUnifiedLogin();
 
+        // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
         const isAdmin = user.role === 'admin';
         const isManager = user.role === 'manager';
         const isDriver = user.role === 'driver';
@@ -901,6 +919,7 @@
             // Get the role button the user pressed
             const selectedRole = currentLoginRole; 
 
+            // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
             // Role mismatch check only for DRIVER and MANAGER logins. 
             // ADMIN login (ADMIN button) is always allowed if credentials are correct.
             if (selectedRole !== 'admin' && selectedRole !== actualRole) {
@@ -982,6 +1001,7 @@
             ownerId: user._id // The user creating the account (Manager or Admin)
         };
 
+        // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
         if (user.role === 'admin' && role === 'driver' && !payload.managerId) {
             messageElement.className = 'text-red-500 text-sm mt-3 text-center';
             messageElement.textContent = 'Error: Driver must be assigned to a Manager by Admin.';
@@ -1010,6 +1030,7 @@
             await apiCall(`users/${userId}`, 'DELETE');
             showCustomAlert('User deleted successfully.', 'Success', 'success');
             await fetchAllUsersAndManagers();
+            // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
             if (user.role === 'admin') renderUserList();
             else if (user.role === 'manager') renderManagerDriverList();
 
@@ -1019,6 +1040,7 @@
     }
 
     async function showEditUserModal(userId) {
+        // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
         if (user.role === 'admin') {
             await fetchPoints();
             await fetchAllUsersAndManagers();
@@ -1128,6 +1150,7 @@
             
             // Re-render the appropriate list view
             await fetchAllUsersAndManagers();
+            // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
             if (user.role === 'admin') renderUserList();
             else if (user.role === 'manager') renderManagerDriverList();
             else renderDashboard(); // For self-edit
@@ -1212,7 +1235,9 @@
             if (user.role === 'manager') {
                 // Use the new endpoint for fetching manager's drivers
                 drivers = await fetchManagerDrivers();
-            } else if (user.role === 'admin') {
+            } 
+            // --- ROLE CHANGE: owner -> admin (PRESERVED) ---
+            else if (user.role === 'admin') {
                 if (!allUsers || allUsers.length === 0) await fetchAllUsersAndManagers();
                 drivers = (allUsers || []).filter(u => u.role === 'driver');
             }
