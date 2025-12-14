@@ -793,6 +793,7 @@
         }
     }
 
+    // --- RENDER POINT LIST (UPDATED FORM) ---
     async function renderPointList() {
         if (user.role !== 'admin' && user.role !== 'owner') return renderDashboard();
 
@@ -821,11 +822,15 @@
                             <h2 class="text-xl font-bold text-gray-700 mb-6">Add New Location</h2>
                             <form id="create-point-form" class="space-y-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">Location Name</label>
-                                    <input type="text" id="name" name="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                                    <label class="block text-sm font-medium text-gray-700">1. Hotel/Function Name</label>
+                                    <input type="text" id="hotelOrFunction" name="hotelOrFunction" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">Address (Optional)</label>
+                                    <label class="block text-sm font-medium text-gray-700">2. Complex Name (Optional)</label>
+                                    <input type="text" id="complex" name="complex" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">3. Full Address (Optional)</label>
                                     <input type="text" id="address" name="address" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
                                 </div>
                                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 font-semibold">Create Location</button>
@@ -877,6 +882,61 @@
                 </table>
             </div>
         `;
+    }
+
+    // UPDATED: handlePointCreateSubmit (Updated logic for new fields and better error handling)
+    async function handlePointCreateSubmit(event) {
+        event.preventDefault();
+        const messageElement = document.getElementById('point-create-message');
+        messageElement.textContent = 'Creating Location...';
+        messageElement.className = 'text-gray-500 text-sm mt-3 text-center'; 
+        const form = event.target;
+
+        const hotelOrFunction = form.hotelOrFunction.value.trim();
+        const complex = form.complex.value.trim();
+        let combinedName = hotelOrFunction;
+        
+        // Combine Hotel/Function and Complex into the 'name' field
+        if (complex) {
+            combinedName = `${hotelOrFunction} (${complex})`;
+        }
+
+        const formData = {
+            name: combinedName,
+            address: form.address.value,
+        };
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/points/admin/create`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(formData)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
+                messageElement.textContent = `Location "${data.name}" created successfully!`;
+                form.reset();
+                await fetchPoints();
+                renderPointList(); 
+            } else {
+                const err = await res.json();
+                
+                // IMPROVED ERROR MESSAGE FOR CLARIFICATION
+                const apiMessage = err.message || 'Server response was not successful.';
+                const errorMessage = apiMessage.toLowerCase().includes('role') || apiMessage.toLowerCase().includes('access') ? 
+                    `Error: ${apiMessage}. (संभव कारण: जाँच करें कि क्या आप **ADMIN/OWNER** के रूप में लॉग इन हैं)` : 
+                    `Error: ${apiMessage}.`;
+
+                messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+                messageElement.textContent = errorMessage;
+            }
+        } catch (err) {
+            console.error('Create Point error', err);
+            messageElement.className = 'text-red-500 text-sm mt-3 text-center';
+            messageElement.textContent = 'Network error: Could not connect to server.';
+        }
     }
 
     // UPDATED: renderDashboard (Fixed Request 1: Manager token generation)
@@ -1008,9 +1068,9 @@
             let driverName = '';
             
             if (token.driverId && typeof token.driverId === 'object') {
-                driverName = String(token.driverId.fullName || token.driverId.username || '').toLowerCase();
+                driverName = token.driverId.fullName || token.driverId.username;
             } else if (token.driverName) {
-                driverName = String(token.driverName).toLowerCase();
+                driverName = token.driverName;
             }
 
             return tokenNumber.includes(query) || 
@@ -1105,42 +1165,6 @@
         } catch (err) {
             console.error('login error', err);
             errorMessage.textContent = 'Could not connect to server. Check URL or network.';
-        }
-    }
-
-    async function handlePointCreateSubmit(event) {
-        event.preventDefault();
-        const messageElement = document.getElementById('point-create-message');
-        messageElement.textContent = 'Creating Location...';
-        const form = event.target;
-        const formData = {
-            name: form.name.value,
-            address: form.address.value,
-        };
-
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/points/admin/create`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify(formData)
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                messageElement.className = 'text-green-600 text-sm mt-3 text-center font-bold';
-                messageElement.textContent = `Location ${data.name} created successfully!`;
-                form.reset();
-                await fetchPoints();
-                renderPointList(); 
-            } else {
-                const err = await res.json();
-                messageElement.className = 'text-red-500 text-sm mt-3 text-center';
-                messageElement.textContent = err.message || 'Failed to create location.';
-            }
-        } catch (err) {
-            console.error('Create Point error', err);
-            messageElement.className = 'text-red-500 text-sm mt-3 text-center';
-            messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
 
