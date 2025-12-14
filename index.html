@@ -42,8 +42,8 @@
 
 <script>
     // --- API BASE URL ---
-    // API URL set to the provided backend link.
-    const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app/'; 
+    // ✅ FIX: Added '/api/' to the base URL. This is the most common fix for a 404 when the root endpoint is not working.
+    const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app/api/'; 
 
     // --- STATE ---
     let appRoot = document.getElementById('app-root');
@@ -59,8 +59,8 @@
 
     // Utility function to make API calls
     async function apiCall(endpoint, method = 'GET', data = null) {
-        // CORRECTED FIX: Removed the unnecessary '/api/' prefix.
-        // URL will now be: https://lifecarevaletbackend-production.up.railway.app/users/login (as per your backend structure)
+        // Now URL will be: API_BASE_URL (which includes /api/) + endpoint
+        // Example: https://lifecarevaletbackend-production.up.railway.app/api/users/login
         const url = `${API_BASE_URL}${endpoint}`; 
         
         const headers = {
