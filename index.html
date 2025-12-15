@@ -884,7 +884,7 @@
         `;
     }
 
-    // UPDATED: handlePointCreateSubmit (Updated logic for new fields and better error handling)
+    // UPDATED: handlePointCreateSubmit (Updated error handling)
     async function handlePointCreateSubmit(event) {
         event.preventDefault();
         const messageElement = document.getElementById('point-create-message');
@@ -923,10 +923,10 @@
             } else {
                 const err = await res.json();
                 
-                // IMPROVED ERROR MESSAGE FOR CLARIFICATION
+                // IMPROVED ERROR MESSAGE FOR CLARIFICATION (Addressing user's role mismatch concern)
                 const apiMessage = err.message || 'Server response was not successful.';
                 const errorMessage = apiMessage.toLowerCase().includes('role') || apiMessage.toLowerCase().includes('access') ? 
-                    `Error: ${apiMessage}. (संभव कारण: जाँच करें कि क्या आप **ADMIN/OWNER** के रूप में लॉग इन हैं)` : 
+                    `Error: ${apiMessage}. (संभव कारण: जाँच करें कि क्या आप **OWNER/ADMIN** के रूप में लॉग इन हैं और आपका session active है)` : 
                     `Error: ${apiMessage}.`;
 
                 messageElement.className = 'text-red-500 text-sm mt-3 text-center';
@@ -1039,25 +1039,31 @@
 
     function filterTokens() {
         const query = tokenSearchQuery.toLowerCase();
-        const isDriverView = user.role === 'driver';
+        const isAdmin = user.role === 'admin' || user.role === 'owner';
+        const isManager = user.role === 'manager';
+        const isDriver = user.role === 'driver';
         
         let activeTokens = (currentTokens || []).filter(t => !t.outTime);
         
-        // Filter by user's assigned point if not owner
-        if (user.role !== 'admin' && user.role !== 'owner' && user.pointId) {
+        // --- Manager/Driver/Admin Filtering Logic ---
+
+        // 1. Admin/Owner sees everything, so no need to filter further by point/role initially.
+
+        // 2. Manager Logic (NEW/UPDATED): Manager sees all tokens from their assigned point.
+        if (isManager && user.pointId) {
             const userPointId = typeof user.pointId === 'object' ? user.pointId._id : user.pointId;
             activeTokens = activeTokens.filter(t => 
                 (t.pointId && typeof t.pointId === 'object' ? t.pointId._id : t.pointId) === userPointId
             );
         }
-
-        // Filter by user's assigned driver ID if driver
-        if (isDriverView) {
+        // 3. Driver Logic: Driver only sees tokens where they are the assigned driver.
+        else if (isDriver) {
              activeTokens = activeTokens.filter(t => 
                 (t.driverId && typeof t.driverId === 'object' ? t.driverId._id : t.driverId) === user._id
             );
         }
-
+        
+        // --- Search Query Filtering ---
         if (!query) return activeTokens;
 
         return activeTokens.filter(token => {
