@@ -336,7 +336,7 @@
 
     // UPDATED: renderSidebarMenu (For Manager/Driver)
     function renderSidebarMenu() {
-        const isOwner = user.role === 'owner';
+        const isOwner = user.role === 'owner' || user.role === 'admin';
         const isManager = user.role === 'manager';
         let links = [];
 
@@ -350,16 +350,16 @@
         
         // Manager Links (Manager Dashboard uses a different structure, so this is for the unified dashboard sidebar)
         else if (isManager) {
-            links.push({ text: '📝 Generate Token', handler: 'renderDashboardContent(\'generateToken\')' });
-            links.push({ text: '📜 Active Tokens', handler: 'renderDashboardContent(\'activeTokens\')' });
+            links.push({ text: '📝 Generate Token', handler: 'renderDashboard()' });
+            links.push({ text: '📜 Active Tokens', handler: 'renderDashboard()' });
             links.push({ text: '👥 Add Driver', handler: 'renderUserManagement(\'driver\')' });
             links.push({ text: '✏️ Edit/Delete Drivers', handler: 'renderManagerDriverList()' });
         }
         
         // Driver Links (Driver Dashboard uses a different structure)
         else if (user.role === 'driver') {
-            links.push({ text: '📝 Generate Token', handler: 'renderDashboardContent(\'generateToken\')' });
-            links.push({ text: '📜 Active Tokens', handler: 'renderDashboardContent(\'activeTokens\')' });
+            links.push({ text: '📝 Generate Token', handler: 'renderDashboard()' });
+            links.push({ text: '📜 Active Tokens', handler: 'renderDashboard()' });
         }
 
         // Logout is always the last item
@@ -424,7 +424,7 @@
             if (!res.ok) throw new Error('Failed to fetch tokens');
             currentTokens = await res.json();
             
-            // Only update lists if they are visible
+            // Only update lists if they are visible (Live List Update)
             const listElement = document.getElementById('active-tokens-list');
             if (listElement) {
                 listElement.innerHTML = renderTokenList();
@@ -545,8 +545,8 @@
         document.getElementById('back-role').addEventListener('click', () => { currentLoginRole = null; renderUnifiedLogin(); });
     }
 
-    // NEW: renderAdminDashboard structure
-    function renderAdminDashboard() {
+    // NEW: renderAdminShell (Loads structure immediately)
+    function renderAdminShell() {
         const adminRole = user.role.toUpperCase();
         
         // --- MAIN CONTENT STRUCTURE ---
@@ -595,16 +595,17 @@
         renderDashboardContent('dashboard');
     }
 
-    // NEW: renderDashboardContent (Handles content loading for Admin)
+    // UPDATED: renderDashboardContent (Handles content loading for Admin)
     async function renderDashboardContent(view) {
         const contentDiv = document.getElementById('dashboard-content');
         if (!contentDiv) return;
 
+        // Show loading spinner immediately
+        contentDiv.innerHTML = `<div class="text-center p-8"><div class="w-8 h-8 border-4 border-t-4 border-gray-400 border-opacity-30 rounded-full animate-spin mx-auto mb-4"></div> Loading Data...</div>`;
+
         // Reset search query on view change
         tokenSearchQuery = ''; 
         
-        contentDiv.innerHTML = `<div class="text-center p-8"><div class="w-8 h-8 border-4 border-t-4 border-gray-400 border-opacity-30 rounded-full animate-spin mx-auto mb-4"></div> Loading...</div>`;
-
         if (view === 'manageUsers') {
             await fetchAllUsersAndManagers();
             renderUserList(contentDiv);
@@ -617,6 +618,10 @@
             await fetchTokens();
             renderAllTokensList(contentDiv);
         } else if (view === 'dashboard') {
+            // Fetch all data for summary
+            await fetchTokens();
+            await fetchPoints();
+            await fetchAllUsersAndManagers();
             contentDiv.innerHTML = renderAdminDashboardSummary();
         } else if (view === 'createLocation') {
             renderPointCreate(contentDiv);
@@ -915,15 +920,15 @@
     // UPDATED: renderUserManagement (Fixed Request 3: Hide assignment message)
     async function renderUserManagement(role) {
         // Pre-fetch data required for Owner/Manager roles
-        if (user.role === 'owner' || user.role === 'manager') {
+        if (user.role === 'owner' || user.role === 'admin' || user.role === 'manager') {
             await fetchPoints();
         }
-        if (user.role === 'owner') {
+        if (user.role === 'owner' || user.role === 'admin') {
             await fetchAllUsersAndManagers();
         }
         
         const roleTitle = role.charAt(0).toUpperCase() + role.slice(1); 
-        const isOwner = user.role === 'owner';
+        const isOwner = user.role === 'owner' || user.role === 'admin';
         const isManager = user.role === 'manager';
         const managersForSelect = currentManagers; 
 
@@ -948,7 +953,7 @@
                 </header>
 
                 <main class="pt-20 p-4">
-                    <button onclick="${isOwner ? 'renderDashboardContent(\'manageUsers\')' : 'renderDashboard()'} " class="mb-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded text-sm flex items-center">
+                    <button onclick="${isOwner ? 'renderAdminShell()' : 'renderDashboard()'} " class="mb-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded text-sm flex items-center">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                         Back to Dashboard
                     </button>
@@ -1188,14 +1193,18 @@
     async function renderDashboard() {
         if (!user) return renderUnifiedLogin();
 
-        // Fetch essential data for all dashboards
-        await fetchTokens();
-        await fetchPoints();
-        
+        // Manager and Driver need initial fetches to load the dashboard shell content (like counts)
+        if (user.role === 'manager' || user.role === 'driver') {
+            await fetchTokens();
+            await fetchPoints();
+        }
+
         if (user.role === 'owner' || user.role === 'admin') {
-            await fetchAllUsersAndManagers(); // Admin needs all users/managers
-            renderAdminDashboard();
+            // Admin/Owner now only renders the shell immediately. Data loading is handled by renderDashboardContent('dashboard')
+            renderAdminShell();
         } else if (user.role === 'manager') {
+            // Manager needs all three fetches to be ready for the dashboard
+            await fetchAllUsersAndManagers(); 
             renderManagerDashboard();
         } else if (user.role === 'driver') {
             renderDriverDashboard();
@@ -1308,10 +1317,12 @@
                 user = { ...data, token: data.token };
                 localStorage.setItem('user', JSON.stringify(user));
                 
-                // Fetch necessary data and render
-                await fetchTokens();
-                await fetchPoints();
-                if (user.role === 'owner' || user.role === 'admin') await fetchAllUsersAndManagers();
+                // Fetch necessary data and render (Admin/Owner now handled in renderDashboard for async loading)
+                // Manager/Driver need data now for counts in their shell
+                if (user.role === 'manager' || user.role === 'driver') {
+                    await fetchTokens();
+                    await fetchPoints();
+                }
                 
                 renderDashboard();
             } else {
@@ -1490,7 +1501,7 @@
         messageElement.textContent = `Creating ${role}...`;
         
         const isDriverCreationByManager = user.role === 'manager' && role === 'driver';
-        const isDriverCreationByOwner = user.role === 'owner' && role === 'driver';
+        const isDriverCreationByOwner = (user.role === 'owner' || user.role === 'admin') && role === 'driver';
 
         let managerId = null;
         let pointId = null;
@@ -1503,7 +1514,7 @@
             // Owner is creating a driver: Manager selected, point determined by logic
             managerId = form.managerId.value;
             pointId = form.pointId.value;
-        } else if (user.role === 'owner' && role === 'manager') {
+        } else if ((user.role === 'owner' || user.role === 'admin') && role === 'manager') {
             // Owner is creating a manager: Point is manually selected
             pointId = form.pointId.value;
         }
@@ -1542,7 +1553,7 @@
                 if (user.role === 'manager') populateManagerDriverSelect(); // Update manager's driver list
 
                 // Optional: redirect after successful creation
-                if (user.role === 'owner') {
+                if (user.role === 'owner' || user.role === 'admin') {
                     setTimeout(() => renderDashboardContent('manageUsers'), 1500);
                 } else if (user.role === 'manager' && role === 'driver') {
                     setTimeout(() => renderDashboard(), 1500);
@@ -1572,7 +1583,7 @@
                 if (res.ok) {
                     showCustomAlert('User deleted successfully.', 'Success', 'success');
                     await fetchAllUsersAndManagers();
-                    if (user.role === 'owner') renderDashboardContent('manageUsers');
+                    if (user.role === 'owner' || user.role === 'admin') renderDashboardContent('manageUsers');
                     else if (user.role === 'manager') renderManagerDriverList();
                 } else {
                     const err = await res.json();
@@ -1750,7 +1761,7 @@
             // 1. Fetch Drivers (Only my drivers)
             if (user.role === 'manager') {
                 drivers = await fetchManagerDrivers();
-            } else if (user.role === 'owner') {
+            } else if (user.role === 'owner' || user.role === 'admin') {
                 if (!allUsers || allUsers.length === 0) await fetchAllUsersAndManagers();
                 drivers = (allUsers || []).filter(u => u.role === 'driver');
             }
