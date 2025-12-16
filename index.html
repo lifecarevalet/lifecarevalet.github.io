@@ -1,686 +1,499 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Life Care Valet Parking</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valet Parking System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-in-out; }
-        .fixed-header { position: sticky; top: 0; z-index: 20; }
-        .login-popup { animation: fadeIn 0.25s ease-out; }
-        /* Professional Popups */
-        .modal-backdrop { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 50; transition: opacity 0.25s ease-in-out; }
-        /* Token popup design */
-        .token-popup .token-number { font-size: clamp(32px, 8vw, 72px); letter-spacing: 2px; }
-        .token-popup .meta { font-size: 14px; }
-        /* Login Title Style */
-        .login-title-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
+        /* Optional: Custom styles for modal backdrop */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen font-sans">
+<body class="bg-gray-100">
 
-<div id="app">
+    <div id="app-container" class="min-h-screen">
+        <div class="p-10 text-center text-gray-500">Loading application...</div>
     </div>
 
-<div id="admin-modal-container"></div>
-<div id="token-modal-container"></div>
+    <div id="car-in-modal" class="fixed inset-0 z-50 overflow-y-auto hidden modal-backdrop">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div id="car-in-modal-content" class="mt-3 text-center sm:mt-0 sm:text-left">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<script>
-    let user = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
-    let isSplash = true;
-    let currentTokens = [];
-    let allUsers = []; 
-    let currentPoints = [];
-    let filteredDrivers = []; // New variable for drivers
+    <script>
+        const API_BASE_URL = '/api'; // Backend API base URL
+        let user = null; // Stores logged-in user data
+        let currentTokens = []; // Stores the fetched tokens list
+        let availableDrivers = []; // Stores the list of available drivers for form
 
-    // --- HELPER FUNCTIONS ---
-
-    // Function to show notification (optional)
-    function showNotification(message, type = 'success') {
-        // Implement a simple notification/toast here if needed
-        console.log(`Notification (${type}): ${message}`);
-    }
-
-    // --- DATA FETCHING ---
-
-    async function fetchPoints(token) {
-        try {
-            const res = await fetch('/api/points/all', {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (res.ok) {
-                currentPoints = await res.json();
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check local storage for user data
+            const storedUser = localStorage.getItem('valetUser');
+            if (storedUser) {
+                try {
+                    user = JSON.parse(storedUser);
+                    renderDashboard();
+                } catch (e) {
+                    // If stored user data is corrupt
+                    handleLogout();
+                }
             } else {
-                console.error('Failed to fetch points:', await res.json());
-                currentPoints = [];
+                renderLogin();
             }
-        } catch (err) {
-            console.error('Network error fetching points', err);
-            currentPoints = [];
-        }
-    }
+        });
 
-    // 🚀 FIX 1: Driver Fetching (Uses the new /api/users/drivers endpoint)
-    async function fetchDrivers(token) {
-        try {
-            const res = await fetch('/api/users/drivers', {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (res.ok) {
-                const drivers = await res.json();
-                filteredDrivers = drivers.filter(d => d.role === 'driver'); // Ensure only drivers
-                // Render the drivers in the Car In form if it exists
-                renderDriversInForm(filteredDrivers);
-            } else {
-                console.error('Failed to fetch drivers:', await res.json());
-                filteredDrivers = [];
+        // --- UI Rendering Functions ---
+
+        function renderLogin() {
+            document.getElementById('app-container').innerHTML = `
+                <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+                    <div class="max-w-md w-full space-y-8 p-10 bg-white rounded-xl shadow-lg">
+                        <div class="text-center">
+                            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+                                Valet Parking Login
+                            </h2>
+                            <p id="login-message" class="mt-2 text-sm text-red-600"></p>
+                        </div>
+                        <form class="mt-8 space-y-6" id="login-form">
+                            <input type="hidden" name="remember" value="true">
+                            <div class="rounded-md shadow-sm -space-y-px">
+                                <div>
+                                    <label for="username" class="sr-only">Username</label>
+                                    <input id="username" name="username" type="text" autocomplete="username" required
+                                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                        placeholder="Username">
+                                </div>
+                                <div>
+                                    <label for="password" class="sr-only">Password</label>
+                                    <input id="password" name="password" type="password" autocomplete="current-password" required
+                                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                        placeholder="Password">
+                                </div>
+                                <div>
+                                    <label for="role" class="sr-only">Role</label>
+                                    <select id="role" name="role" required
+                                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm">
+                                        <option value="">Select Role</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="manager">Manager</option>
+                                        <option value="driver">Driver</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <button type="submit"
+                                    class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    Sign in
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+        }
+
+        function renderDashboard() {
+            const role = user.user.role.toLowerCase().trim();
+            
+            // Location name for display
+            const locationName = user.user.pointId ? user.user.pointId.name : 'N/A';
+
+            // Header
+            let headerHtml = `
+                <header class="bg-indigo-600 shadow">
+                    <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                        <h1 class="text-xl font-bold text-white">
+                            Valet Dashboard (${role.toUpperCase()})
+                        </h1>
+                        <div class="flex items-center space-x-4">
+                            <span class="text-white text-sm">
+                                ${user.user.fullName} (${locationName})
+                            </span>
+                            <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm">
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                </header>
+            `;
+
+            // Main Content (Token List)
+            let mainContentHtml = `
+                <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                    <div class="px-4 py-6 sm:px-0">
+                        <div class="bg-white shadow overflow-hidden sm:rounded-lg p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg leading-6 font-medium text-gray-900">Current Valet Tokens</h3>
+                                ${((role === 'manager' && user.user.pointId) || role === 'driver') ? `<button id="open-car-in-modal" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded text-sm">
+                                    + Car In / New Token
+                                </button>` : ''}
+                            </div>
+                            
+                            <div id="token-list-container">
+                                <p class="text-center text-gray-500">Loading tokens...</p>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            `;
+
+            document.getElementById('app-container').innerHTML = headerHtml + mainContentHtml;
+
+            // Attach Listeners
+            document.getElementById('logout-button').addEventListener('click', handleLogout);
+            
+            if ((role === 'manager' && user.user.pointId) || role === 'driver') {
+                const carInButton = document.getElementById('open-car-in-modal');
+                if (carInButton) {
+                    carInButton.addEventListener('click', openCarInModal);
+                }
             }
-        } catch (err) {
-            console.error('Network error fetching drivers', err);
-            filteredDrivers = [];
+            
+            // Load initial data
+            fetchTokens();
+            fetchDrivers();
         }
-    }
 
-    // 🚀 FIX 2: Driver Rendering (Fills the select dropdown)
-    function renderDriversInForm(drivers) {
-        const driverSelect = document.getElementById('car-in-driver-id');
-        if (driverSelect) {
-            driverSelect.innerHTML = '<option value="">-- Select Driver --</option>'; // Default empty option
+        // --- Data Fetching Functions ---
+
+        async function fetchData(url, method = 'GET', body = null) {
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            if (user && user.token) {
+                headers['Authorization'] = `Bearer ${user.token}`;
+            }
+
+            const options = { method, headers };
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            const response = await fetch(url, options);
+            
+            // Handle session expiry/forbidden access
+            if (response.status === 401 || response.status === 403) {
+                handleLogout();
+                throw new Error('Session expired or access denied.');
+            }
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'API request failed with status: ' + response.status }));
+                throw new Error(errorData.message || 'API request failed.');
+            }
+
+            return response.json();
+        }
+
+        async function fetchTokens() {
+            try {
+                // This route handles scoping for manager/driver automatically
+                const data = await fetchData(`${API_BASE_URL}/tokens/admin/all`);
+                currentTokens = data.tokens.sort((a, b) => new Date(b.inTime) - new Date(a.inTime)); 
+                renderTokenList(currentTokens);
+            } catch (error) {
+                console.error('Error fetching tokens:', error);
+                document.getElementById('token-list-container').innerHTML = `<p class="text-red-500 text-center">Error loading tokens: ${error.message}</p>`;
+            }
+        }
+
+        async function fetchDrivers() {
+            try {
+                // This route handles filtering drivers by manager's pointId
+                const drivers = await fetchData(`${API_BASE_URL}/users/drivers`);
+                availableDrivers = drivers;
+                
+                // If the modal is open, populate the dropdown
+                const driverSelect = document.getElementById('car-in-driver-id');
+                if (driverSelect) {
+                    renderDriversInForm(availableDrivers);
+                }
+
+            } catch (error) {
+                console.error('Error fetching drivers:', error);
+            }
+        }
+
+
+        // --- Event Handlers & Logic ---
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            const messageElement = document.getElementById('login-message');
+            
+            try {
+                messageElement.textContent = 'Logging in...';
+                
+                const res = await fetch(`${API_BASE_URL}/users/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, role }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    user = data;
+                    localStorage.setItem('valetUser', JSON.stringify(data));
+                    messageElement.textContent = '';
+                    renderDashboard();
+                } else {
+                    const err = await res.json();
+                    messageElement.textContent = err.message || 'Login failed.';
+                }
+            } catch (err) {
+                messageElement.textContent = 'Network error: Could not connect to server.';
+                console.error('Login error:', err);
+            }
+        }
+
+        function handleLogout() {
+            user = null;
+            localStorage.removeItem('valetUser');
+            renderLogin();
+        }
+
+        // --- Token UI/Logic ---
+
+        function renderDriversInForm(drivers) {
+            const driverSelect = document.getElementById('car-in-driver-id');
+            if (!driverSelect) return;
+
+            // Clear existing options
+            driverSelect.innerHTML = '<option value="">-- Select Driver --</option>';
+
             drivers.forEach(driver => {
                 const option = document.createElement('option');
-                option.value = driver._id; // Value hamesha _id honi chahiye
+                option.value = driver._id;
                 option.textContent = `${driver.fullName} (${driver.username})`;
                 driverSelect.appendChild(option);
             });
         }
-    }
 
+        function renderTokenList(tokens) {
+            const container = document.getElementById('token-list-container');
+            if (!container) return;
 
-    async function fetchAllUsers(token) {
-        try {
-            const res = await fetch('/api/users/admin/users', { // Fetches managers, drivers, etc.
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (res.ok) {
-                allUsers = await res.json();
-            } else {
-                console.error('Failed to fetch all users:', await res.json());
-                allUsers = [];
+            if (tokens.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500">No tokens found.</p>';
+                return;
             }
-        } catch (err) {
-            console.error('Network error fetching all users', err);
-            allUsers = [];
-        }
-    }
 
-    async function fetchTokens(token) {
-        try {
-            const res = await fetch('/api/tokens/admin/all', { // Fetches all tokens for the user's scope
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (res.ok) {
-                currentTokens = await res.json();
-                renderTokenList(); 
-            } else {
-                console.error('Failed to fetch tokens:', await res.json());
-                currentTokens = [];
+            const tableHtml = `
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token #</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Car Details</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver/Manager</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time In</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${tokens.map(token => `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${token.tokenNumber || 'N/A'}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <strong>${token.carNumber}</strong><br>
+                                        <span class="text-xs">${token.carModel || 'N/A'}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${token.customerName}<br>
+                                        <span class="text-xs">${token.customerContact || 'N/A'}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${token.pointId ? token.pointId.name : 'N/A'}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        D: ${token.driverId ? token.driverId.fullName : 'N/A'}<br>
+                                        M: ${token.managerId ? token.managerId.fullName : 'N/A'}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${token.status === 'Parked' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                                            ${token.status}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${new Date(token.inTime).toLocaleTimeString()}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        ${token.status === 'Parked' ? `
+                                            <button onclick="handleCarOut('${token._id}')" class="text-indigo-600 hover:text-indigo-900 text-sm">
+                                                Car Out
+                                            </button>` : `<span class="text-gray-400">Completed</span>`
+                                        }
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            container.innerHTML = tableHtml;
+        }
+
+        function openCarInModal() {
+            const modal = document.getElementById('car-in-modal');
+            const modalContent = document.getElementById('car-in-modal-content');
+            
+            modalContent.innerHTML = renderCarInForm();
+            modal.classList.remove('hidden');
+            
+            // Attach event listener to the form inside the modal
+            document.getElementById('car-in-form').addEventListener('submit', handleTokenSubmit);
+            
+            // Populate the driver dropdown immediately
+            renderDriversInForm(availableDrivers);
+        }
+
+        function closeCarInModal() {
+            document.getElementById('car-in-modal').classList.add('hidden');
+        }
+
+        function renderCarInForm() {
+            // Check if the current user is authorized to create a token
+            const isAuthorized = ((user.user.role === 'manager' && user.user.pointId) || user.user.role === 'driver');
+            if (!isAuthorized) {
+                return `<p class="text-red-500">You are not authorized to create a token or your location is not set.</p>`;
             }
-        } catch (err) {
-            console.error('Network error fetching tokens', err);
-            currentTokens = [];
-        }
-    }
 
-    async function fetchData(token) {
-        await Promise.all([
-            fetchPoints(token),
-            fetchAllUsers(token),
-            fetchTokens(token),
-            fetchDrivers(token) // Fetch drivers for the Car In form
-        ]);
-    }
+            return `
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Car In / New Valet Token</h3>
+                <form id="car-in-form" class="space-y-4">
+                    <div class="mb-4">
+                        <label for="car-in-car-number" class="block text-sm font-medium text-gray-700">Car Number <span class="text-red-500">*</span></label>
+                        <input type="text" id="car-in-car-number" name="carNumber" required 
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm uppercase"
+                            placeholder="E.g., MH12AB1234">
+                    </div>
 
-    // --- LOGIN ---
-
-    async function handleLoginSubmit(e) {
-        e.preventDefault();
-        const form = e.target;
-        const username = form.username.value;
-        const password = form.password.value;
-        const role = form.role.value;
-        const messageElement = document.getElementById('login-message');
-        messageElement.textContent = 'Logging in...';
-
-        try {
-            const res = await fetch('/api/users/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, role }),
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                user = data;
-                localStorage.setItem('user', JSON.stringify(data));
-                messageElement.className = 'text-green-500 text-sm pt-3 text-center';
-                messageElement.textContent = `Login successful! Welcome ${data.user.role}.`;
-                await fetchData(data.token); 
-                renderApp();
-            } else {
-                const err = await res.json();
-                messageElement.className = 'text-red-500 text-sm pt-3 text-center';
-                messageElement.textContent = err.message || 'Invalid credentials or network error.';
-            }
-        } catch (err) {
-            console.error('Login error', err);
-            messageElement.className = 'text-red-500 text-sm pt-3 text-center';
-            messageElement.textContent = 'Network error: Could not connect to server.';
-        }
-    }
-
-    // --- TOKEN SUBMISSION ---
-
-    // 🚀 FIX 3: Token Submission Logic
-    async function handleTokenSubmit(e) {
-        e.preventDefault();
-        const form = e.target;
-        const messageElement = document.getElementById('token-message');
-        messageElement.textContent = 'Processing Car In...';
-
-        // 1. Data Collection
-        const carNumber = document.getElementById('car-in-car-number').value;
-        const driverId = document.getElementById('car-in-driver-id').value;
-        const customerName = document.getElementById('car-in-customer-name').value;
-        const carModel = document.getElementById('car-in-car-model').value;
-        const customerContact = document.getElementById('car-in-customer-contact').value;
-        
-        // 2. Client-Side Validation
-        if (!carNumber || !driverId) {
-            messageElement.className = 'text-red-500 text-sm pt-3 text-center';
-            messageElement.textContent = 'Car Number and Driver selection are required.';
-            return;
-        }
-
-        try {
-            const res = await fetch('/api/tokens/in', { 
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`,
-                },
-                body: JSON.stringify({ 
-                    carNumber, 
-                    driverId, 
-                    customerName, 
-                    carModel, 
-                    customerContact,
-                    // pointId is OMITTED: Backend will automatically assign it from req.user.pointId
-                }),
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                messageElement.className = 'text-green-500 text-sm pt-3 text-center';
-                messageElement.textContent = data.message;
-                form.reset();
-                await fetchTokens(user.token); // Refresh token list
-            } else {
-                const err = await res.json();
-                messageElement.className = 'text-red-500 text-sm pt-3 text-center';
-                messageElement.textContent = err.message || 'Failed to generate token.';
-            }
-        } catch (err) {
-            console.error('Token submit error', err);
-            messageElement.className = 'text-red-500 text-sm pt-3 text-center';
-            messageElement.textContent = 'Network error: Could not connect to server.';
-        }
-    }
-    
-    // --- UI RENDERING ---
-
-    function renderCarInForm() {
-        const isManager = user.user.role === 'manager';
-        const isDriver = user.user.role === 'driver';
-
-        return `
-            <div class="bg-white p-6 rounded-lg shadow-lg">
-                <h3 class="text-xl font-semibold mb-4 text-center">Car In / New Token</h3>
-                <p class="text-sm text-center text-indigo-600 mb-4">${isManager ? 'Location Auto-Assigned: ' + (user.user.pointId?.name || 'N/A') : ''}</p>
-                <form id="token-form">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="mb-4">
-                            <label for="car-in-car-number" class="block text-sm font-medium text-gray-700">Car Number</label>
-                            <input type="text" id="car-in-car-number" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm uppercase">
-                        </div>
-                        <div class="mb-4">
-                            <label for="car-in-driver-id" class="block text-sm font-medium text-gray-700">Assign Driver</label>
-                            <select id="car-in-driver-id" name="driverId" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                <option value="">-- Select Driver --</option>
+                    <div class="mb-4">
+                        <label for="car-in-driver-id" class="block text-sm font-medium text-gray-700">Assign Driver <span class="text-red-500">*</span></label>
+                        <select id="car-in-driver-id" name="driverId" required 
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <option value="">-- Select Driver --</option>
                             </select>
-                        </div>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="mb-4">
-                            <label for="car-in-customer-name" class="block text-sm font-medium text-gray-700">Customer Name (Optional)</label>
-                            <input type="text" id="car-in-customer-name" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        </div>
-                        <div class="mb-4">
-                            <label for="car-in-customer-contact" class="block text-sm font-medium text-gray-700">Contact Number (Optional)</label>
-                            <input type="text" id="car-in-customer-contact" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:focus:border-indigo-500 sm:text-sm">
-                        </div>
-                    </div>
-
                     <div class="mb-4">
-                        <label for="car-in-car-model" class="block text-sm font-medium text-gray-700">Car Model (Optional)</label>
-                        <input type="text" id="car-in-car-model" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:focus:border-indigo-500 sm:text-sm">
+                        <label for="car-in-customer-name" class="block text-sm font-medium text-gray-700">Customer Name</label>
+                        <input type="text" id="car-in-customer-name" name="customerName" 
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="mb-4">
+                        <label for="car-in-car-model" class="block text-sm font-medium text-gray-700">Car Model</label>
+                        <input type="text" id="car-in-car-model" name="carModel" 
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="mb-4">
+                        <label for="car-in-customer-contact" class="block text-sm font-medium text-gray-700">Customer Contact</label>
+                        <input type="text" id="car-in-customer-contact" name="customerContact" 
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     </div>
 
-                    <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Generate Token (Car In)
-                    </button>
-                    <p id="token-message" class="pt-3 text-sm text-center"></p>
+                    <div id="token-submit-message" class="text-sm pt-2 text-center"></div>
+
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeCarInModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded text-sm">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded text-sm">
+                            Generate Token
+                        </button>
+                    </div>
                 </form>
-            </div>
-        `;
-    }
-    
-    // --- (Baaki saare rendering functions yahan hain: renderUnifiedLogin, renderDashboard, renderAdminUsers, renderTokenList, etc.) ---
-    
-    function renderAdminUsers() {
-        // Renders the list of managers and drivers for Admin
-        // ... (existing code for admin users list)
-    }
-
-    function renderTokenList() {
-        const tokenListContainer = document.getElementById('token-list-container');
-        if (!tokenListContainer) return;
-
-        let tableHtml = `
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token #</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Car Number</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">In Time</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-        `;
-        
-        currentTokens.forEach(token => {
-            const statusClass = token.status === 'Parked' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
-            const locationName = token.pointId ? token.pointId.name : 'N/A';
-            const driverName = token.driverId ? token.driverId.fullName : 'N/A';
-            const inTime = new Date(token.inTime).toLocaleString();
-
-            tableHtml += `
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${token._id.slice(-6).toUpperCase()}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${token.carNumber}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${locationName}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${driverName}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${inTime}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
-                            ${token.status}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        ${token.status === 'Parked' ? 
-                            `<button onclick="handleCarOut('${token._id}')" class="text-red-600 hover:text-red-900 ml-2">Car Out</button>` :
-                            `<span class="text-gray-400">Done</span>`
-                        }
-                        
-                    </td>
-                </tr>
             `;
-        });
-
-        tableHtml += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-        tokenListContainer.innerHTML = tableHtml;
-    }
-
-    async function handleCarOut(tokenId) {
-        if (!confirm('Are you sure you want to mark this car as OUT?')) return;
-        
-        try {
-            const res = await fetch(`/api/tokens/out/${tokenId}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${user.token}` },
-            });
-
-            if (res.ok) {
-                showNotification('Car successfully marked OUT!', 'success');
-                await fetchTokens(user.token); // Refresh list
-            } else {
-                const err = await res.json();
-                showNotification(err.message || 'Failed to mark car out.', 'error');
-            }
-        } catch (err) {
-            showNotification('Network error during Car Out.', 'error');
-        }
-    }
-
-
-    function renderDashboard() {
-        if (!user) return renderUnifiedLogin();
-
-        const role = user.user.role;
-        const app = document.getElementById('app');
-        app.className = 'animate-fadeIn';
-
-        let dashboardContent = '';
-        let tabsHtml = '';
-        let tokenListTitle = 'All Parked/Recent Tokens';
-
-        if (role === 'admin') {
-            tabsHtml = `
-                <button onclick="renderDashboardTab('token')" id="tab-token" class="px-4 py-2 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">Tokens</button>
-                <button onclick="renderDashboardTab('user')" id="tab-user" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Users/Managers</button>
-            `;
-        } else if (role === 'manager' || role === 'driver') {
-            tokenListTitle = `Tokens at ${user.user.pointId?.name || 'Your Point'}`;
         }
 
+        // 🔥 FINAL FIX FOR MANDATORY FIELDS (JavaScript side)
+        async function handleTokenSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const messageElement = document.getElementById('token-submit-message');
+            
+            // FormData se sabhi fields ko unke 'name' attribute se read karna
+            const formData = new FormData(form);
+            
+            const tokenData = {
+                carNumber: formData.get('carNumber'),
+                customerName: formData.get('customerName'),
+                carModel: formData.get('carModel'),
+                customerContact: formData.get('customerContact'),
+                // 'driverId' ko uske name attribute se read karna
+                driverId: formData.get('driverId'), 
+            };
 
-        dashboardContent = `
-            <header class="fixed-header bg-white shadow-md">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-                    <h1 class="text-2xl font-bold text-indigo-600">Life Care Valet</h1>
-                    <div class="flex items-center">
-                        <span class="text-sm font-medium text-gray-700 mr-4">${user.user.fullName || user.user.username} (${role.toUpperCase()})</span>
-                        <button onclick="handleLogout()" class="py-1 px-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-500 hover:bg-red-600 focus:outline-none">Logout</button>
-                    </div>
-                </div>
-                ${role === 'admin' ? 
-                    `<nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-gray-200">
-                        ${tabsHtml}
-                    </nav>` 
-                    : ''}
-            </header>
-
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-28">
-                
-                ${(role === 'manager' || role === 'driver') ? 
-                    `<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                        <div class="lg:col-span-1">
-                            ${renderCarInForm()}
-                        </div>
-                        <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
-                            <h3 class="text-xl font-semibold mb-4">${tokenListTitle}</h3>
-                            <div id="token-list-container">Loading Tokens...</div>
-                        </div>
-                    </div>` 
-                    : ''}
-                    
-                ${role === 'admin' ? 
-                    `<div id="admin-tabs-content">
-                        <div id="token-tab-content">
-                            <div class="bg-white p-6 rounded-lg shadow-lg">
-                                <h3 class="text-xl font-semibold mb-4">${tokenListTitle}</h3>
-                                <div id="token-list-container">Loading Tokens...</div>
-                            </div>
-                        </div>
-                        
-                        <div id="user-tab-content" style="display:none;">
-                            <div class="bg-white p-6 rounded-lg shadow-lg">
-                                <h3 class="text-xl font-semibold mb-4">Create/Manage Users</h3>
-                                <div id="create-user-form-container">
-                                    ${renderCreateUserForm()}
-                                </div>
-                                <h3 class="text-xl font-semibold mt-8 mb-4">All Users List</h3>
-                                <div id="admin-users-list-container">Loading Users...</div>
-                            </div>
-                        </div>
-                    </div>` 
-                    : ''}
-                
-            </main>
-        `;
-
-        app.innerHTML = dashboardContent;
-        
-        // Attach form listeners after content is rendered
-        if (document.getElementById('token-form')) {
-            document.getElementById('token-form').addEventListener('submit', handleTokenSubmit);
-        }
-        if (document.getElementById('create-user-form')) {
-            document.getElementById('create-user-form').addEventListener('submit', handleCreateUserSubmit);
-        }
-        
-        // Final call to populate drivers after the form exists
-        if (user.token && (role === 'manager' || role === 'driver')) {
-            renderDriversInForm(filteredDrivers);
-        }
-        
-        // Initial render for admin tabs
-        if (role === 'admin') {
-            renderAdminUsers();
-            renderDashboardTab('token');
-        }
-        
-        renderTokenList(); // Initial list render
-    }
-
-    // --- (Baaki saare functions jaise renderCreateUserForm, renderUnifiedLogin, renderSplashScreen, handleCreateUserSubmit, renderDashboardTab, wagairah same rahenge) ---
-
-    function renderUnifiedLogin() {
-        const app = document.getElementById('app');
-        app.className = 'flex items-center justify-center min-h-screen animate-fadeIn';
-        app.innerHTML = `
-            <div class="login-popup bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
-                <div class="login-title-container mb-6">
-                    <img src="https://via.placeholder.com/60" alt="Logo" class="mx-auto h-12 w-auto mb-3">
-                    <h2 class="text-3xl font-extrabold text-gray-900">Life Care Valet</h2>
-                    <p class="mt-2 text-sm text-gray-600">Sign in to your account</p>
-                </div>
-                <form id="login-form">
-                    <div class="mb-4">
-                        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-                        <input type="text" id="username" name="username" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                    <div class="mb-4">
-                        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                        <input type="password" id="password" name="password" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                    <div class="mb-6">
-                        <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
-                        <select id="role" name="role" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="manager">Manager</option>
-                            <option value="driver">Driver</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Sign in
-                    </button>
-                    <p id="login-message" class="pt-3 text-sm text-center"></p>
-                </form>
-            </div>
-        `;
-        document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
-    }
-
-    function renderSplashScreen() {
-        const app = document.getElementById('app');
-        app.className = 'flex items-center justify-center min-h-screen bg-indigo-600 animate-fadeIn';
-        app.innerHTML = `
-            <div class="text-white text-center">
-                <h1 class="text-5xl font-extrabold tracking-tight">Life Care Valet</h1>
-                <p class="mt-3 text-xl font-light">Loading parking system...</p>
-            </div>
-        `;
-    }
-
-    // --- ADMIN USER FORM & LOGIC (assuming your existing logic here) ---
-
-    function renderCreateUserForm() {
-        // ... (existing code for admin create user form)
-        // Ensure this form's fields have NAME attributes: name="username", name="password", etc.
-        return `
-            <form id="create-user-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="new-username" class="block text-sm font-medium text-gray-700">Username</label>
-                        <input type="text" id="new-username" name="username" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                    </div>
-                    <div>
-                        <label for="new-password" class="block text-sm font-medium text-gray-700">Password</label>
-                        <input type="password" id="new-password" name="password" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="new-fullname" class="block text-sm font-medium text-gray-700">Full Name</label>
-                        <input type="text" id="new-fullname" name="fullName" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                    </div>
-                    <div>
-                        <label for="new-contact" class="block text-sm font-medium text-gray-700">Contact Number</label>
-                        <input type="text" id="new-contact" name="contactNumber" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label for="new-role" class="block text-sm font-medium text-gray-700">Role</label>
-                        <select id="new-role" name="role" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                            <option value="manager">Manager</option>
-                            <option value="driver">Driver</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="new-point-id" class="block text-sm font-medium text-gray-700">Assign Point (Location)</label>
-                        <select id="new-point-id" name="pointId" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                            <option value="">-- Select Point (Optional) --</option>
-                            ${currentPoints.map(p => `<option value="${p._id}">${p.name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div>
-                        <label for="new-manager-id" class="block text-sm font-medium text-gray-700">Assign Manager (For Driver)</label>
-                        <select id="new-manager-id" name="managerId" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2">
-                            <option value="">-- Select Manager (Optional) --</option>
-                            ${allUsers.filter(u => u.role === 'manager').map(m => `<option value="${m._id}">${m.fullName} (${m.username})</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-
-                <button type="submit" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                    Create User
-                </button>
-                <p id="create-user-message" class="pt-3 text-sm text-center"></p>
-            </form>
-        `;
-    }
-
-    async function handleCreateUserSubmit(e) {
-        e.preventDefault();
-        const form = e.target;
-        const messageElement = document.getElementById('create-user-message');
-        messageElement.textContent = 'Creating user...';
-
-        const userData = {
-            username: form.username.value,
-            password: form.password.value,
-            fullName: form.fullName.value,
-            contactNumber: form.contactNumber.value,
-            role: form.role.value,
-            pointId: form.pointId.value || undefined, // Send as undefined if empty
-            managerId: form.managerId.value || undefined, // Send as undefined if empty
-        };
-
-        try {
-            // FIX: URL is now /admin/create-user (as diagnosed)
-            const res = await fetch('/api/users/admin/create-user', { 
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`,
-                },
-                body: JSON.stringify(userData),
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                messageElement.className = 'text-green-500 text-sm pt-3 text-center';
-                messageElement.textContent = data.message;
-                form.reset();
-                await fetchAllUsers(user.token); 
-                renderAdminUsers(); 
-            } else {
-                const err = await res.json();
+            // Frontend validation (Backend logic is the primary check)
+            if (!tokenData.carNumber || !tokenData.driverId) {
                 messageElement.className = 'text-red-500 text-sm pt-3 text-center';
-                messageElement.textContent = err.message || 'Failed to create user.';
+                messageElement.textContent = 'Car Number and Driver are required.';
+                return;
             }
-        } catch (err) {
-            console.error('Create User error', err);
-            messageElement.className = 'text-red-500 text-sm pt-3 text-center';
-            messageElement.textContent = 'Network error: Could not connect to server.';
+
+            try {
+                messageElement.textContent = 'Generating Token...';
+                messageElement.className = 'text-blue-500 text-sm pt-3 text-center';
+
+                const res = await fetch(`${API_BASE_URL}/tokens/in`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${user.token}`,
+                    },
+                    body: JSON.stringify(tokenData),
+                });
+
+                if (res.ok) {
+                    const result = await res.json();
+                    messageElement.className = 'text-green-500 text-sm pt-3 text-center';
+                    messageElement.textContent = result.message || 'Token generated successfully!';
+                    
+                    form.reset();
+                    await fetchTokens(); // List refresh
+                    
+                    setTimeout(closeCarInModal, 1500);
+                } else {
+                    const err = await res.json();
+                    messageElement.className = 'text-red-500 text-sm pt-3 text-center';
+                    messageElement.textContent = err.message || 'Failed to generate token (Backend Error).';
+                }
+            } catch (err) {
+                console.error('Token Submit Network error', err);
+                messageElement.className = 'text-red-500 text-sm pt-3 text-center';
+                messageElement.textContent = 'Network error: Could not connect to API. (Check Server Status)'; 
+            }
         }
-    }
 
-
-    function renderDashboardTab(tabName) {
-        document.getElementById('token-tab-content').style.display = 'none';
-        document.getElementById('user-tab-content').style.display = 'none';
-        
-        document.getElementById('tab-token').classList.remove('border-indigo-500', 'text-indigo-600');
-        document.getElementById('tab-token').classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700');
-        document.getElementById('tab-user').classList.remove('border-indigo-500', 'text-indigo-600');
-        document.getElementById('tab-user').classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700');
-
-        document.getElementById(`${tabName}-tab-content`).style.display = 'block';
-        document.getElementById(`tab-${tabName}`).classList.add('border-indigo-500', 'text-indigo-600');
-        document.getElementById(`tab-${tabName}`).classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700');
-    }
-
-    async function handleLogout() {
-        user = null;
-        localStorage.removeItem('user');
-        currentTokens = [];
-        allUsers = [];
-        currentPoints = [];
-        filteredDrivers = [];
-        renderApp();
-    }
-
-    // --- INIT / APP ---
-    function renderApp() {
-        if (isSplash) renderSplashScreen();
-        else if (user) renderDashboard();
-        else renderUnifiedLogin(); 
-    }
-
-    // start
-    renderSplashScreen();
-    setTimeout(() => {
-        isSplash = false;
-        // Fetch data immediately upon starting if user is logged in
-        if (user) {
-            fetchData(user.token).then(renderApp);
-        } else {
-            renderApp();
+        async function handleCarOut(tokenId) {
+            if (!confirm('Are you sure the car is ready to be marked OUT?')) {
+                return;
+            }
+            
+            try {
+                await fetchData(`${API_BASE_URL}/tokens/out/${tokenId}`, 'POST');
+                alert('Car marked OUT successfully!');
+                await fetchTokens(); // Refresh the list
+            } catch (error) {
+                alert(`Failed to mark car out: ${error.message}`);
+                console.error('Car Out error:', error);
+            }
         }
-    }, 800);
-    
-</script>
+    </script>
 </body>
 </html>
