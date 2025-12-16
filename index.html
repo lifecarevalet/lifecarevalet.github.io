@@ -29,7 +29,7 @@
 <div id="app"></div>
 
 <script>
-    // 🛑 FIX: API Base URL updated to your Railway Production Link
+    // 🛑 FIXED API URL: Aapka Railway Production Link
     const API_BASE_URL = 'https://lifecarevaletbackend-production.up.railway.app/api'; 
     
     let user = JSON.parse(localStorage.getItem('user')) || null;
@@ -564,7 +564,8 @@
     document.addEventListener('DOMContentLoaded', () => {
         const tokenEditForm = document.getElementById('token-edit-form');
         if (tokenEditForm) {
-            handleTokenEditSubmit(tokenEditForm); // Note: Assuming this function exists elsewhere
+            // Assuming handleTokenEditSubmit is defined elsewhere
+            // tokenEditForm.addEventListener('submit', handleTokenEditSubmit); 
         }
     });
 
