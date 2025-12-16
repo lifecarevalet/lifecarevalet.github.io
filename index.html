@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Life Care Valet Parking</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script> 
     <style>
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
         .animate-fadeIn { animation: fadeIn 0.4s ease-in-out; }
@@ -90,18 +90,18 @@
             }
 
             // Fetch Points (Placeholder endpoint)
-            if (user.role === 'admin') {
+            if (user.user.role === 'admin') {
                 const pointRes = await apiCall('/points');
                 if (pointRes.ok) {
                     currentPoints = await pointRes.json();
                 }
-            } else if (user.pointId) {
+            } else if (user.user.pointId) {
                 // Manager/Driver only needs their assigned point data
-                currentPoints = [user.pointId]; 
+                currentPoints = [user.user.pointId]; 
             }
             
             // Fetch Managers/Drivers (Placeholder endpoint)
-            if (user.role === 'admin' || user.role === 'manager') {
+            if (user.user.role === 'admin' || user.user.role === 'manager') {
                 const usersRes = await apiCall('/users/admin/users'); // Use the filtered list route
                 if (usersRes.ok) {
                     allUsers = await usersRes.json();
@@ -427,7 +427,7 @@
         } catch (err) {
             console.error('Login error', err);
             messageElement.className = 'text-red-500 text-sm pt-3';
-            // THIS IS THE ERROR YOU WERE FACING:
+            // Network Error: Agar aapka backend server (Railway par) down hai ya unreachable hai
             messageElement.textContent = 'Network error: Could not connect to server.';
         }
     }
@@ -560,12 +560,11 @@
         renderApp();
     }, 800);
 
-    // Attach listener for the new token edit modal form
+    // Attach listener for the new token edit modal form (Placeholder for future development)
     document.addEventListener('DOMContentLoaded', () => {
         const tokenEditForm = document.getElementById('token-edit-form');
         if (tokenEditForm) {
-            // Assuming handleTokenEditSubmit is defined elsewhere
-            // tokenEditForm.addEventListener('submit', handleTokenEditSubmit); 
+            // If you add a token edit form, the submission logic will go here
         }
     });
 
