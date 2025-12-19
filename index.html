@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Life Care Valet Parking - Full Version</title>
+    <title>Life Care Valet Parking</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
         .animate-fadeIn { animation: fadeIn 0.4s ease-in-out; }
         .fixed-header { position: sticky; top: 0; z-index: 20; }
-        .modal-backdrop { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 50; }
-        .tab-btn.active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        .login-popup { animation: fadeIn 0.25s ease-out; }
+        .modal-backdrop { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 50; transition: opacity 0.25s ease-in-out; }
+        .token-popup .token-number { font-size: clamp(32px, 8vw, 72px); letter-spacing: 2px; }
+        .token-popup .meta { font-size: 14px; }
+        .tab-btn.active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: bold; }
     </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-900 min-h-screen">
@@ -24,7 +27,6 @@
     let isSplash = true;
     let currentTab = 'dashboard'; 
 
-    // Data lists
     let currentTokens = [];
     let currentPoints = [];
     let currentManagers = [];
@@ -40,50 +42,71 @@
 
     function getUserPointDetails() {
         if (!user) return null;
+        if (user.role === 'admin') return null;
         return user.point || user.assignedPoint || null;
     }
 
     // --- API CALLS ---
-    async function fetchAllData() {
-        if (!user) return;
+    async function fetchPoints() {
         try {
-            const headers = getAuthHeaders();
-            
-            // Parallel fetches
-            const [tokensRes, pointsRes, managersRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/tokens${(user.role!=='admin' && getUserPointDetails()) ? '?pointId='+getUserPointDetails()._id : ''}`, { headers }),
-                fetch(`${API_BASE_URL}/api/points`, { headers }),
-                fetch(`${API_BASE_URL}/api/users/managers`, { headers })
-            ]);
-
-            if (tokensRes.ok) currentTokens = await tokensRes.json();
-            if (pointsRes.ok) currentPoints = await pointsRes.json();
-            if (managersRes.ok) currentManagers = await managersRes.json();
-
-            if (user.role === 'admin') {
-                const usersRes = await fetch(`${API_BASE_URL}/api/users`, { headers });
-                if (usersRes.ok) allUsers = await usersRes.json();
-            }
-            
-            renderApp();
-        } catch (err) { console.error('Data fetch error', err); }
+            const res = await fetch(`${API_BASE_URL}/api/points`, { headers: getAuthHeaders() });
+            if (res.ok) currentPoints = await res.json();
+        } catch (err) { console.error('Points fetch error', err); }
     }
 
-    // --- TOKEN GENERATE (FIXED) ---
+    async function fetchManagers() {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/users/managers`, { headers: getAuthHeaders() });
+            if (res.ok) currentManagers = await res.json();
+        } catch (err) { console.error('Managers fetch error', err); }
+    }
+
+    async function fetchTokens() {
+        if (!user) return;
+        try {
+            let url = `${API_BASE_URL}/api/tokens`;
+            if (user.role === 'manager' || user.role === 'driver') {
+                const p = getUserPointDetails();
+                if (p) url += `?pointId=${p._id}`;
+            }
+            const res = await fetch(url, { headers: getAuthHeaders() });
+            if (res.ok) {
+                currentTokens = await res.json();
+                renderDashboard();
+            }
+        } catch (err) { console.error('Tokens fetch error', err); }
+    }
+
+    async function fetchUsers() {
+        if (!user || user.role !== 'admin') return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/users`, { headers: getAuthHeaders() });
+            if (res.ok) allUsers = await res.json();
+        } catch (err) { console.error('Users fetch error', err); }
+    }
+
+    // --- TOKEN LOGIC (THE FIX) ---
     async function handleCarInSubmit(e) {
         e.preventDefault();
         const carNumber = document.getElementById('carNumber').value;
         const customerName = document.getElementById('customerName').value;
-        const driverId = document.getElementById('driverId').value; // Ye dropdown se aayega
+        const driverSelect = document.getElementById('driverId');
+        
+        // FIX: Mandatory fields check
+        const selectedDriverId = driverSelect ? driverSelect.value : user._id;
         const inMessage = document.getElementById('car-in-message');
-
+        
         const point = getUserPointDetails();
-        if (!point) {
-            alert("Error: No Location Assigned!");
+        const assignedPointId = point ? point._id : null;
+
+        if (!assignedPointId) {
+            inMessage.className = 'text-red-500 text-sm mt-2 text-center';
+            inMessage.textContent = 'Error: Location (Point) not assigned to you.';
             return;
         }
 
         inMessage.textContent = 'Generating...';
+
         try {
             const res = await fetch(`${API_BASE_URL}/api/tokens/in`, {
                 method: 'POST',
@@ -91,8 +114,8 @@
                 body: JSON.stringify({ 
                     carNumber, 
                     customerName, 
-                    driverId: driverId, // FIXED: Correct key sent to backend
-                    pointId: point._id 
+                    driverId: selectedDriverId, 
+                    pointId: assignedPointId 
                 })
             });
             const data = await res.json();
@@ -100,98 +123,47 @@
                 showTokenPopup(data);
                 e.target.reset();
                 inMessage.textContent = '';
-                fetchAllData();
+                fetchTokens();
             } else {
                 inMessage.textContent = data.message || 'Error creating token';
             }
-        } catch (err) { inMessage.textContent = 'Network error'; }
+        } catch (err) {
+            inMessage.textContent = 'Network error.';
+        }
     }
 
-    // --- UI COMPONENTS ---
+    // --- RENDERING (FULL UI) ---
     function renderSplashScreen() {
-        document.getElementById('app').innerHTML = `<div class="flex items-center justify-center h-screen bg-blue-600 text-white animate-fadeIn text-center"><div><h1 class="text-4xl font-bold">LIFE CARE</h1><p>Valet Parking</p></div></div>`;
+        document.getElementById('app').innerHTML = `
+            <div class="flex items-center justify-center h-screen bg-blue-600 text-white animate-fadeIn">
+                <div class="text-center">
+                    <h1 class="text-4xl font-bold">LIFE CARE</h1>
+                    <p class="text-lg opacity-80">Valet Parking</p>
+                </div>
+            </div>`;
     }
 
     function renderUnifiedLogin() {
         document.getElementById('app').innerHTML = `
             <div class="flex items-center justify-center min-h-screen bg-gray-100 p-4">
-                <form onsubmit="handleLogin(event)" class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-                    <h2 class="text-3xl font-bold text-center text-blue-600 mb-6">Login</h2>
-                    <input type="email" id="loginEmail" placeholder="Email" required class="w-full mb-4 p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                    <input type="password" id="loginPassword" placeholder="Password" required class="w-full mb-4 p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                    <button class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition">Login</button>
-                    <p id="login-message" class="text-center text-red-500 mt-2 text-sm"></p>
-                </form>
+                <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+                    <h2 class="text-2xl font-bold text-center text-blue-600 mb-6">Valet Login</h2>
+                    <form onsubmit="handleUnifiedLogin(event)" class="space-y-4">
+                        <input type="email" id="loginEmail" placeholder="Email" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="password" id="loginPassword" placeholder="Password" required class="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold">Login</button>
+                        <p id="login-message" class="text-center text-red-500 text-sm"></p>
+                    </form>
+                </div>
             </div>`;
     }
 
-    function renderDashboard() {
-        const p = getUserPointDetails();
-        const activeTokens = currentTokens.filter(t => t.status === 'in');
-
-        document.getElementById('app').innerHTML = `
-            <header class="fixed-header bg-white shadow-sm p-4 flex justify-between items-center">
-                <div>
-                    <h1 class="font-bold text-blue-600 text-xl tracking-tight">LIFE CARE</h1>
-                    <p class="text-[10px] text-gray-500 uppercase">${p ? p.name : 'No Point'} | ${user.name}</p>
-                </div>
-                <div class="flex gap-4">
-                    <button onclick="fetchAllData()" class="text-blue-500 text-sm">Refresh</button>
-                    <button onclick="logout()" class="text-red-500 text-sm">Logout</button>
-                </div>
-            </header>
-
-            <main class="p-4 max-w-2xl mx-auto space-y-6 pb-20">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <span class="w-1.5 h-5 bg-green-500 rounded-full"></span> New Car Entry
-                    </h3>
-                    <form onsubmit="handleCarInSubmit(event)" class="space-y-4">
-                        <div class="grid grid-cols-1 gap-4">
-                            <input type="text" id="carNumber" placeholder="CAR NUMBER (MH01...)" required class="w-full p-4 border rounded-xl bg-gray-50 uppercase font-bold text-lg focus:bg-white outline-none border-gray-200">
-                            <input type="text" id="customerName" placeholder="CUSTOMER NAME (OPTIONAL)" class="w-full p-4 border rounded-xl bg-gray-50 focus:bg-white outline-none border-gray-200">
-                            
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-gray-400 ml-1">ASSIGN DRIVER</label>
-                                <select id="driverId" required class="w-full p-4 border rounded-xl bg-gray-50 outline-none border-gray-200">
-                                    <option value="${user._id}">You as Driver (${user.name})</option>
-                                    ${currentManagers.filter(m => m._id !== user._id).map(m => `<option value="${m._id}">${m.name}</option>`).join('')}
-                                </select>
-                            </div>
-                        </div>
-                        <button class="w-full bg-green-600 text-white py-4 rounded-xl font-black text-lg shadow-lg active:scale-95 transition">GENERATE TOKEN</button>
-                        <p id="car-in-message" class="text-center text-sm font-medium"></p>
-                    </form>
-                </div>
-
-                <div class="space-y-4">
-                    <div class="flex justify-between items-center">
-                        <h3 class="font-bold text-gray-700">Active Cars (${activeTokens.length})</h3>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 gap-3">
-                        ${activeTokens.length === 0 ? '<p class="text-center text-gray-400 py-10">No cars parked at this location.</p>' : activeTokens.map(t => `
-                            <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
-                                <div>
-                                    <span class="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">#${t.tokenNumber}</span>
-                                    <div class="font-black text-lg uppercase mt-1">${t.carNumber}</div>
-                                    <div class="text-[10px] text-gray-400 uppercase">${new Date(t.createdAt).toLocaleTimeString()}</div>
-                                </div>
-                                <button onclick="handleCarOut('${t._id}')" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md">OUT</button>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </main>
-        `;
-    }
-
-    // --- OTHER CORE FUNCTIONS ---
-    async function handleLogin(e) {
+    async function handleUnifiedLogin(e) {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value;
         const password = document.getElementById('loginPassword').value;
         const msg = document.getElementById('login-message');
+        msg.textContent = 'Logging in...';
         try {
             const res = await fetch(`${API_BASE_URL}/api/users/login`, {
                 method: 'POST',
@@ -202,53 +174,102 @@
             if (res.ok) {
                 user = data;
                 localStorage.setItem('user', JSON.stringify(user));
-                fetchAllData();
-            } else { msg.textContent = data.message; }
-        } catch (err) { msg.textContent = 'Server error'; }
+                await initData();
+                renderDashboard();
+            } else { msg.textContent = data.message || 'Login failed'; }
+        } catch (err) { msg.textContent = 'Server Error'; }
+    }
+
+    async function initData() {
+        if (!user) return;
+        await Promise.all([fetchPoints(), fetchManagers(), fetchTokens()]);
+        if (user.role === 'admin') await fetchUsers();
+    }
+
+    function renderDashboard() {
+        const p = getUserPointDetails();
+        const pointName = p ? p.name : 'Admin View';
+
+        document.getElementById('app').innerHTML = `
+            <header class="fixed-header bg-white shadow-sm p-4 flex justify-between items-center">
+                <div>
+                    <h1 class="font-bold text-blue-600">LIFE CARE</h1>
+                    <p class="text-[10px] text-gray-500">${pointName} | ${user.name}</p>
+                </div>
+                <button onclick="handleLogout()" class="text-sm text-red-500">Logout</button>
+            </header>
+
+            <main class="p-4 pb-20 max-w-2xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                    <h3 class="font-bold mb-4">Car In (New Token)</h3>
+                    <form onsubmit="handleCarInSubmit(event)" class="space-y-4">
+                        <input type="text" id="carNumber" placeholder="Car Number" required class="w-full p-3 border rounded-xl bg-gray-50 uppercase">
+                        <input type="text" id="customerName" placeholder="Customer Name" class="w-full p-3 border rounded-xl bg-gray-50">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-gray-400">SELECT DRIVER</label>
+                            <select id="driverId" required class="w-full p-3 border rounded-xl bg-gray-50">
+                                <option value="${user._id}">You (${user.name})</option>
+                                ${currentManagers.filter(m => m._id !== user._id).map(m => `<option value="${m._id}">${m.name}</option>`).join('')}
+                            </select>
+                        </div>
+                        <button class="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg">Generate Token</button>
+                        <p id="car-in-message" class="text-center text-sm"></p>
+                    </form>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="font-bold">Active Cars</h3>
+                    ${currentTokens.filter(t => t.status === 'in').map(t => `
+                        <div class="bg-white p-4 rounded-xl border flex justify-between items-center shadow-sm">
+                            <div>
+                                <div class="font-bold text-blue-600">#${t.tokenNumber}</div>
+                                <div class="uppercase text-lg font-black">${t.carNumber}</div>
+                            </div>
+                            <button onclick="handleCarOut('${t._id}')" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold">OUT</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </main>
+
+            <nav class="fixed bottom-0 left-0 w-full bg-white border-t flex justify-around p-3 z-30">
+                <button onclick="switchTab('dashboard')" class="text-blue-600 font-bold">Dashboard</button>
+                ${user.role === 'admin' ? '<button onclick="switchTab(\'admin\')">Admin</button>' : ''}
+                <button onclick="switchTab('settings')">Settings</button>
+            </nav>
+        `;
     }
 
     async function handleCarOut(id) {
-        if(!confirm("Are you sure the car is leaving?")) return;
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/tokens/out/${id}`, {
-                method: 'PUT',
-                headers: getAuthHeaders()
-            });
-            if (res.ok) fetchAllData();
-        } catch (err) { alert("Error updating status"); }
+        if(!confirm("Release car?")) return;
+        const res = await fetch(`${API_BASE_URL}/api/tokens/out/${id}`, { method: 'PUT', headers: getAuthHeaders() });
+        if(res.ok) fetchTokens();
     }
 
     function showTokenPopup(token) {
-        const div = document.createElement('div');
-        div.className = 'modal-backdrop animate-fadeIn';
-        div.innerHTML = `
-            <div class="bg-white p-8 rounded-[40px] text-center shadow-2xl w-full max-w-[320px] relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-3 bg-green-500"></div>
-                <p class="text-xs font-bold text-gray-400 tracking-widest uppercase">Token Generated</p>
-                <div class="text-[70px] font-black text-blue-600 leading-none my-4">#${token.tokenNumber}</div>
-                <div class="bg-gray-50 rounded-2xl py-3 px-4 mb-6">
-                    <div class="text-2xl font-black uppercase tracking-tight">${token.carNumber}</div>
-                </div>
-                <button onclick="this.closest('.modal-backdrop').remove()" class="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold">DONE</button>
+        const modal = document.createElement('div');
+        modal.className = 'modal-backdrop animate-fadeIn';
+        modal.innerHTML = `
+            <div class="bg-white p-8 rounded-[40px] text-center shadow-2xl w-80">
+                <p class="text-xs text-gray-400">TOKEN GENERATED</p>
+                <div class="text-6xl font-black text-blue-600 my-4">#${token.tokenNumber}</div>
+                <div class="text-2xl font-black uppercase mb-6">${token.carNumber}</div>
+                <button onclick="this.closest('.modal-backdrop').remove()" class="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold">CLOSE</button>
             </div>`;
-        document.body.appendChild(div);
+        document.body.appendChild(modal);
     }
 
-    function logout() {
+    function handleLogout() {
         localStorage.clear();
         location.reload();
     }
 
     function renderApp() {
         if (isSplash) renderSplashScreen();
-        else if (user) renderDashboard();
+        else if (user) { initData().then(renderDashboard); }
         else renderUnifiedLogin();
     }
 
-    // Initialize
     setTimeout(() => { isSplash = false; renderApp(); }, 1000);
-    if(user) fetchAllData();
-
 </script>
 </body>
 </html>
